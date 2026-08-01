@@ -11,7 +11,7 @@ export default async function InterpretiPage({
 }) {
   const dotaz = searchParams.q?.trim();
   const interpreti = await prisma.interpret.findMany({
-    where: dotaz ? { nazev: { contains: dotaz, mode: "insensitive" } } : undefined,
+    where: dotaz ? { nazev: { contains: dotaz, mode: "insensitive" as const } } : undefined,
     orderBy: { nazev: "asc" },
     include: { _count: { select: { alba: true, skladby: true, clenstvi: true } } },
   });

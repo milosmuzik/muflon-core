@@ -6,7 +6,7 @@ import Link from "next/link";
 export default async function AlbaPage({ searchParams }: { searchParams: { q?: string } }) {
   const dotaz = searchParams.q?.trim();
   const alba = await prisma.album.findMany({
-    where: dotaz ? { nazev: { contains: dotaz, mode: "insensitive" } } : undefined,
+    where: dotaz ? { nazev: { contains: dotaz, mode: "insensitive" as const } } : undefined,
     orderBy: { nazev: "asc" },
     include: { interpreti: { include: { interpret: true } }, _count: { select: { skladby: true } } },
   });

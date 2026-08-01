@@ -6,7 +6,7 @@ import Link from "next/link";
 export default async function HudebniciPage({ searchParams }: { searchParams: { q?: string } }) {
   const dotaz = searchParams.q?.trim();
   const hudebnici = await prisma.hudebnik.findMany({
-    where: dotaz ? { jmeno: { contains: dotaz, mode: "insensitive" } } : undefined,
+    where: dotaz ? { jmeno: { contains: dotaz, mode: "insensitive" as const } } : undefined,
     orderBy: { jmeno: "asc" },
     include: { _count: { select: { clenstvi: true } }, clenstvi: { include: { interpret: true }, take: 3 } },
   });

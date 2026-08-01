@@ -13,7 +13,7 @@ export default async function SkladbyPage({
   const dotaz = searchParams.q?.trim();
   const strana = Math.max(1, Number(searchParams.strana) || 1);
 
-  const kde = dotaz ? { nazev: { contains: dotaz, mode: "insensitive" } } : undefined;
+  const kde = dotaz ? { nazev: { contains: dotaz, mode: "insensitive" as const } } : undefined;
 
   const [skladby, celkem] = await Promise.all([
     prisma.skladba.findMany({

@@ -79,27 +79,27 @@ export async function smazatVazbu(id: string, cestaZpet: string) {
 async function najdiIdPodleNazvu(typ: string, nazev: string): Promise<string | null> {
   switch (typ) {
     case "Interpret": {
-      const r = await prisma.interpret.findFirst({ where: { nazev: { contains: nazev, mode: "insensitive" } } });
+      const r = await prisma.interpret.findFirst({ where: { nazev: { contains: nazev, mode: "insensitive" as const } } });
       return r?.id ?? null;
     }
     case "Hudebnik": {
-      const r = await prisma.hudebnik.findFirst({ where: { jmeno: { contains: nazev, mode: "insensitive" } } });
+      const r = await prisma.hudebnik.findFirst({ where: { jmeno: { contains: nazev, mode: "insensitive" as const } } });
       return r?.id ?? null;
     }
     case "Album": {
-      const r = await prisma.album.findFirst({ where: { nazev: { contains: nazev, mode: "insensitive" } } });
+      const r = await prisma.album.findFirst({ where: { nazev: { contains: nazev, mode: "insensitive" as const } } });
       return r?.id ?? null;
     }
     case "Skladba": {
-      const r = await prisma.skladba.findFirst({ where: { nazev: { contains: nazev, mode: "insensitive" } } });
+      const r = await prisma.skladba.findFirst({ where: { nazev: { contains: nazev, mode: "insensitive" as const } } });
       return r?.id ?? null;
     }
     case "Pribeh": {
-      const r = await prisma.pribeh.findFirst({ where: { nadpis: { contains: nazev, mode: "insensitive" } } });
+      const r = await prisma.pribeh.findFirst({ where: { nadpis: { contains: nazev, mode: "insensitive" as const } } });
       return r?.id ?? null;
     }
     case "Udalost": {
-      const r = await prisma.udalost.findFirst({ where: { nazev: { contains: nazev, mode: "insensitive" } } });
+      const r = await prisma.udalost.findFirst({ where: { nazev: { contains: nazev, mode: "insensitive" as const } } });
       return r?.id ?? null;
     }
     default:

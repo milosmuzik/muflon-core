@@ -9,12 +9,12 @@ export default async function HledatPage({ searchParams }: { searchParams: { q?:
 
   if (dotaz) {
     const [interpreti, hudebnici, alba, skladby, pribehy, udalosti] = await Promise.all([
-      prisma.interpret.findMany({ where: { nazev: { contains: dotaz, mode: "insensitive" } }, take: 10 }),
-      prisma.hudebnik.findMany({ where: { jmeno: { contains: dotaz, mode: "insensitive" } }, take: 10 }),
-      prisma.album.findMany({ where: { nazev: { contains: dotaz, mode: "insensitive" } }, take: 10 }),
-      prisma.skladba.findMany({ where: { nazev: { contains: dotaz, mode: "insensitive" } }, take: 10 }),
-      prisma.pribeh.findMany({ where: { OR: [{ nadpis: { contains: dotaz, mode: "insensitive" } }, { obsah: { contains: dotaz, mode: "insensitive" } }] }, take: 10 }),
-      prisma.udalost.findMany({ where: { nazev: { contains: dotaz, mode: "insensitive" } }, take: 10 }),
+      prisma.interpret.findMany({ where: { nazev: { contains: dotaz, mode: "insensitive" as const } }, take: 10 }),
+      prisma.hudebnik.findMany({ where: { jmeno: { contains: dotaz, mode: "insensitive" as const } }, take: 10 }),
+      prisma.album.findMany({ where: { nazev: { contains: dotaz, mode: "insensitive" as const } }, take: 10 }),
+      prisma.skladba.findMany({ where: { nazev: { contains: dotaz, mode: "insensitive" as const } }, take: 10 }),
+      prisma.pribeh.findMany({ where: { OR: [{ nadpis: { contains: dotaz, mode: "insensitive" as const } }, { obsah: { contains: dotaz, mode: "insensitive" as const } }] }, take: 10 }),
+      prisma.udalost.findMany({ where: { nazev: { contains: dotaz, mode: "insensitive" as const } }, take: 10 }),
     ]);
 
     vysledky = [
