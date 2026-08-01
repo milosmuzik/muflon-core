@@ -1,0 +1,56 @@
+import { prisma } from "@/lib/prisma";
+import { vytvoritPribeh } from "@/lib/actions/pribehy";
+import IndexCard from "@/components/IndexCard";
+import StatusBadge from "@/components/StatusBadge";
+import Link from "next/link";
+
+export default async function PribehyPage({ searchParams }: { searchParams: { stav?: string } }) {
+  const filtrStav = searchParams.stav;
+  const pribehy = await prisma.pribeh.findMany({
+    where: filtrStav ? { stav: filtrStav } : undefined,
+    orderBy: { updatedAt: "desc" },
+  });
+
+  const STAVY = ["navrh", "overeno", "schvaleno", "publikovano", "archivovano"];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-baseline justify-between">
+        <h1 className="font-display text-2xl text-paper">Příběhy</h1>
+        <span className="tab-label">{pribehy.length} záznamů</span>
+      </div>
+
+      <div className="flex flex-wrap gap-2 text-xs font-mono">
+        <Link href="/pribehy" className={`px-2 py-1 rounded-sm border ${!filtrStav ? "border-accent text-accent" : "border-line text-muted"}`}>vše</Link>
+        {STAVY.map((s) => (
+          <Link key={s} href={`/pribehy?stav=${s}`} className={`px-2 py-1 rounded-sm border ${filtrStav === s ? "border-accent text-accent" : "border-line text-muted"}`}>
+            {s}
+          </Link>
+        ))}
+      </div>
+
+      <div className="space-y-3">
+        {pribehy.map((p) => (
+          <Link key={p.id} href={`/pribehy/${p.id}`} className="index-card p-4 pl-6 flex items-start justify-between gap-4 hover:border-accent/50 transition-colors focus-ring block">
+            <div>
+              <div className="font-display text-lg text-paper">{p.nadpis}</div>
+              <p className="text-muted text-sm mt-1 line-clamp-2">{p.obsah}</p>
+            </div>
+            <StatusBadge stav={p.stav} />
+          </Link>
+        ))}
+        {pribehy.length === 0 && <p className="text-muted text-sm">Žádné příběhy v tomto filtru.</p>}
+      </div>
+
+      <IndexCard label="Napsat nový příběh">
+        <form action={vytvoritPribeh} className="space-y-3 text-sm">
+          <input name="nadpis" placeholder="Nadpis" required className="w-full bg-ink border border-line rounded-sm px-3 py-2 text-paper placeholder:text-muted/70 focus-ring" />
+          <textarea name="obsah" placeholder="Redakčně zpracovaný text příběhu…" required rows={5} className="w-full bg-ink border border-line rounded-sm px-3 py-2 text-paper placeholder:text-muted/70 focus-ring" />
+          <button className="bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-2 hover:bg-accentDim/50 transition-colors focus-ring">
+            Uložit jako návrh
+          </button>
+        </form>
+      </IndexCard>
+    </div>
+  );
+}

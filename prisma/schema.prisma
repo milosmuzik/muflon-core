@@ -1,0 +1,186 @@
+// Muflon Core – datový model
+// Vychází z Muflon Core Bible, Svazek II (Doménový model).
+// Princip: objekt + vlastnosti + vztahy + zdroje + historie = znalost.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Kapitola 6 – Interpret (centrální uzel znalostní sítě)
+// ---------------------------------------------------------------------------
+model Interpret {
+  id                String   @id @default(uuid())
+  nazev             String
+  alternativniNazvy String? // JSON pole se string hodnotami
+  typ               String   @default("kapela") // kapela | solo | projekt
+  rokVzniku         Int?
+  stav              String   @default("aktivni") // aktivni | ukonceny | archivovany
+  poznamka          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  clenstvi Clenstvi[]
+  alba     AlbumInterpret[]
+  skladby  SkladbaInterpret[]
+}
+
+// ---------------------------------------------------------------------------
+// Kapitola 7 – Hudebník (fyzická osoba; kariéra = historie vztahů)
+// ---------------------------------------------------------------------------
+model Hudebnik {
+  id            String    @id @default(uuid())
+  jmeno         String
+  pseudonymy    String?
+  datumNarozeni String? // podpora částečných dat, proto text (např. jen rok)
+  datumUmrti    String?
+  poznamka      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  clenstvi Clenstvi[]
+}
+
+// Vztah hudebník <-> interpret. Kariéra hudebníka je tvořena historií těchto vztahů (kap. 7).
+model Clenstvi {
+  id          String    @id @default(uuid())
+  hudebnikId  String
+  hudebnik    Hudebnik  @relation(fields: [hudebnikId], references: [id], onDelete: Cascade)
+  interpretId String
+  interpret   Interpret @relation(fields: [interpretId], references: [id], onDelete: Cascade)
+  role        String? // zakladajici clen | clen | byvaly clen | studiovy hudebnik | hostujici
+  nastroj     String?
+  obdobiOd    String?
+  obdobiDo    String?
+  poznamka    String?
+  createdAt   DateTime  @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Kapitola 8 – Album
+// ---------------------------------------------------------------------------
+model Album {
+  id                String   @id @default(uuid())
+  nazev             String
+  alternativniNazvy String?
+  datumVydani       String? // podpora částečných dat (rok / rok-měsíc / přesné)
+  vydavatel         String?
+  poznamka          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  interpreti AlbumInterpret[]
+  skladby    Skladba[]
+}
+
+model AlbumInterpret {
+  id          String    @id @default(uuid())
+  albumId     String
+  album       Album     @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  interpretId String
+  interpret   Interpret @relation(fields: [interpretId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Kapitola 9 – Skladba (každá verze je samostatná entita)
+// ---------------------------------------------------------------------------
+model Skladba {
+  id                 String   @id @default(uuid())
+  nazev              String // přesný název dle playlistu Rádia Muflon
+  verze              String? // studiova | ziva | akusticka | remaster | ...
+  albumId            String?
+  album              Album?   @relation(fields: [albumId], references: [id])
+  datumPrvnihoVydani String?
+  vPlaylistu         Boolean  @default(true)
+  puvodniVerzeId     String? // odkaz na původní verzi (cover, remaster)
+  poznamka           String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  interpreti SkladbaInterpret[]
+}
+
+model SkladbaInterpret {
+  id          String    @id @default(uuid())
+  skladbaId   String
+  skladba     Skladba   @relation(fields: [skladbaId], references: [id], onDelete: Cascade)
+  interpretId String
+  interpret   Interpret @relation(fields: [interpretId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Kapitola 10 – Příběh (redakčně zpracovaná znalost)
+// ---------------------------------------------------------------------------
+model Pribeh {
+  id        String   @id @default(uuid())
+  nadpis    String
+  obsah     String
+  stav      String   @default("navrh") // navrh | overeno | schvaleno | publikovano | archivovano
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Událost / výročí (vstup pro Muflonní kalendář, Etapa 4)
+// ---------------------------------------------------------------------------
+model Udalost {
+  id                String   @id @default(uuid())
+  nazev             String
+  typ               String   @default("jina") // vyroci_alba | narozeniny | umrti | jina
+  datum             String // YYYY-MM-DD, nebo MM-DD pro každoroční výročí
+  opakujeSe         Boolean  @default(true)
+  popis             String?
+  stav              String   @default("navrh")
+  zdrojAI           Boolean  @default(false) // založeno automaticky AI agentem
+  zverejnitNaSitich Boolean  @default(false) // redakční výběr k publikaci na sociálních sítích
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Zdroj – ověřitelnost (kap. 4.4). Polymorfní vazba na libovolný objekt.
+// ---------------------------------------------------------------------------
+model Zdroj {
+  id           String    @id @default(uuid())
+  cilovyTyp    String // Interpret | Hudebnik | Album | Skladba | Pribeh | Udalost
+  cilovyId     String
+  nazev        String
+  url          String?
+  kategorie    String    @default("orientacni") // hierarchie zdrojů dle Muflon Core Bible
+  datumOvereni String?
+  uroverDuvery String    @default("neoverene") // neoverene | nizka | stredni | vysoka
+  poznamka     String?
+  createdAt    DateTime  @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Vazba – obecná hrana znalostní sítě (kap. 4.5 Propojenost) nad rámec
+// explicitních cizích klíčů výše (např. hudebník <-> příběh, album <-> událost).
+// ---------------------------------------------------------------------------
+model Vazba {
+  id          String   @id @default(uuid())
+  zdrojovyTyp String
+  zdrojovyId  String
+  cilovyTyp   String
+  cilovyId    String
+  typVztahu   String // volný text popisující povahu vztahu
+  poznamka    String?
+  createdAt   DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Historie změn – audit log (kap. 4, "Historie")
+// ---------------------------------------------------------------------------
+model HistorieZmeny {
+  id        String   @id @default(uuid())
+  entitaTyp String
+  entitaId  String
+  akce      String // vytvoreno | upraveno | smazano | zmena_stavu
+  popis     String?
+  createdAt DateTime @default(now())
+}

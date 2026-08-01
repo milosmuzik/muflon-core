@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/navrhy-kalendar",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}
