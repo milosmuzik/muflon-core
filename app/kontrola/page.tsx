@@ -1,0 +1,197 @@
+import { prisma } from "@/lib/prisma";
+import IndexCard from "@/components/IndexCard";
+import Link from "next/link";
+import { sloucitSkupinu } from "@/lib/actions/slouceni";
+
+export default async function KontrolaPage() {
+  const [
+    interpretiVsichni,
+    vsechnyZdroje,
+    pribehyVsechny,
+    pribehyZdroje,
+    vazbyPribehInterpret,
+    clenstviVsechny,
+    udalostiNeoverene,
+  ] = await Promise.all([
+    prisma.interpret.findMany({
+      orderBy: { createdAt: "asc" },
+      include: { _count: { select: { alba: true, skladby: true, clenstvi: true } } },
+    }),
+    prisma.zdroj.findMany({ where: { cilovyTyp: "Interpret" }, select: { cilovyId: true } }),
+    prisma.pribeh.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.zdroj.findMany({ where: { cilovyTyp: "Pribeh" }, select: { cilovyId: true } }),
+    prisma.vazba.findMany({ where: { zdrojovyTyp: "Pribeh", cilovyTyp: "Interpret" }, select: { zdrojovyId: true } }),
+    prisma.clenstvi.findMany({ include: { hudebnik: true } }),
+    prisma.udalost.findMany({ where: { zdrojAI: false, stav: "navrh" }, orderBy: { createdAt: "asc" } }),
+  ]);
+
+  const interpretIdSeZdrojem = new Set(vsechnyZdroje.map((z) => z.cilovyId));
+  const referencniBezZdroju = interpretiVsichni.filter(
+    (i) => i.urovenKarty === "referencni" && !interpretIdSeZdrojem.has(i.id)
+  );
+
+  const interpretiNavrh = interpretiVsichni.filter((i) => i.urovenKarty === "navrh").slice(0, 10);
+
+  const pribehIdSeZdrojem = new Set(pribehyZdroje.map((z) => z.cilovyId));
+  const pribehyBezZdroju = pribehyVsechny.filter((p) => !pribehIdSeZdrojem.has(p.id));
+
+  const pribehIdSVazbou = new Set(vazbyPribehInterpret.map((v) => v.zdrojovyId));
+  const pribehyBezInterpreta = pribehyVsechny.filter((p) => !pribehIdSVazbou.has(p.id));
+
+  const interpretyPodleHudebnika = new Map<string, Set<string>>();
+  for (const c of clenstviVsechny) {
+    if (!interpretyPodleHudebnika.has(c.hudebnikId)) interpretyPodleHudebnika.set(c.hudebnikId, new Set());
+    interpretyPodleHudebnika.get(c.hudebnikId)!.add(c.interpretId);
+  }
+  const podezreliHudebnici = clenstviVsechny
+    .filter((c, idx, arr) => arr.findIndex((x) => x.hudebnikId === c.hudebnikId) === idx)
+    .map((c) => ({ id: c.hudebnikId, jmeno: c.hudebnik.jmeno, pocetKapel: interpretyPodleHudebnika.get(c.hudebnikId)?.size ?? 0 }))
+    .filter((h) => h.pocetKapel >= 3)
+    .sort((a, b) => b.pocetKapel - a.pocetKapel);
+
+  const podleNazvu = new Map<string, typeof interpretiVsichni>();
+  for (const i of interpretiVsichni) {
+    const klic = i.nazev.trim().toLowerCase();
+    if (!podleNazvu.has(klic)) podleNazvu.set(klic, []);
+    podleNazvu.get(klic)!.push(i);
+  }
+  const duplicitniInterpreti = [...podleNazvu.values()].filter((v) => v.length > 1);
+
+  const pocetProblemu =
+    referencniBezZdroju.length + pribehyBezZdroju.length + pribehyBezInterpreta.length +
+    podezreliHudebnici.length + duplicitniInterpreti.length;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="tab-label mb-2">Automatická pojistka proti zaplevelení dat</p>
+        <h1 className="font-display text-2xl text-paper">Kontrola kvality</h1>
+        <p className="text-muted text-sm mt-1">
+          {pocetProblemu === 0 ? "Žádné nalezené nesrovnalosti." : `${pocetProblemu} věcí k ruční kontrole.`}
+        </p>
+      </div>
+
+      <IndexCard label={`⚠ Referenční karty bez zdroje (${referencniBezZdroju.length})`}>
+        {referencniBezZdroju.length === 0 ? (
+          <p className="text-muted text-sm">V pořádku - všechny referenční karty mají alespoň jeden zdroj.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {referencniBezZdroju.map((i) => (
+              <li key={i.id}>
+                <Link href={`/interpreti/${i.id}`} className="text-sm text-paper hover:text-accent">{i.nazev}</Link>
+                <span className="text-rust text-xs font-mono ml-2">označeno ⭐ referenční, ale bez zdroje</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </IndexCard>
+
+      <IndexCard label={`👥 Hudebníci hraní ve 3+ kapelách (${podezreliHudebnici.length})`}>
+        <p className="text-muted text-xs mb-3">Může jít o skutečné hostující/session hudebníky, nebo o omylem spojené dvě různé osoby se stejným jménem. Zkontroluj ručně.</p>
+        {podezreliHudebnici.length === 0 ? (
+          <p className="text-muted text-sm">Žádní takoví.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {podezreliHudebnici.map((h) => (
+              <li key={h.id}>
+                <Link href={`/hudebnici/${h.id}`} className="text-sm text-paper hover:text-accent">{h.jmeno}</Link>
+                <span className="text-muted text-xs font-mono ml-2">{h.pocetKapel} různých interpretů</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </IndexCard>
+
+      <IndexCard label={`🎭 Možní duplicitní interpreti (${duplicitniInterpreti.length})`}>
+        {duplicitniInterpreti.length === 0 ? (
+          <p className="text-muted text-sm">Žádné shodné názvy.</p>
+        ) : (
+          <div className="space-y-5">
+            {duplicitniInterpreti.map((skupina, idx) => {
+              const bohatstvi = (i: (typeof skupina)[number]) => i._count.alba + i._count.skladby + i._count.clenstvi;
+              const serazena = [...skupina].sort((a, b) => bohatstvi(b) - bohatstvi(a));
+              return (
+                <form key={idx} action={sloucitSkupinu} className="border-b border-line/60 pb-4 last:border-0">
+                  <p className="text-muted text-xs font-mono mb-2">Vyber, který záznam zůstane:</p>
+                  <div className="space-y-1.5 mb-3">
+                    {serazena.map((i, j) => (
+                      <label key={i.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="radio" name="keep" value={i.id} defaultChecked={j === 0} className="accent-accent" />
+                        <input type="hidden" name="vsechna" value={i.id} />
+                        <Link href={`/interpreti/${i.id}`} className="text-paper hover:text-accent">
+                          {i.nazev}
+                        </Link>
+                        <span className="text-muted text-xs font-mono">
+                          {i._count.alba} alb · {i._count.skladby} skladeb · {i._count.clenstvi} členů
+                          {i.urovenKarty === "referencni" ? " · ⭐ referenční" : ""}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <button className="text-xs bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring">
+                    Sloučit do vybraného
+                  </button>
+                </form>
+              );
+            })}
+          </div>
+        )}
+      </IndexCard>
+
+      <IndexCard label={`📖 Příběhy bez zdroje (${pribehyBezZdroju.length})`}>
+        {pribehyBezZdroju.length === 0 ? (
+          <p className="text-muted text-sm">Všechny příběhy mají alespoň jeden zdroj.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {pribehyBezZdroju.map((p) => (
+              <li key={p.id}>
+                <Link href={`/pribehy/${p.id}`} className="text-sm text-paper hover:text-accent">{p.nadpis}</Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </IndexCard>
+
+      <IndexCard label={`🔗 Příběhy bez propojení na interpreta (${pribehyBezInterpreta.length})`}>
+        {pribehyBezInterpreta.length === 0 ? (
+          <p className="text-muted text-sm">Všechny příběhy jsou propojené.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {pribehyBezInterpreta.map((p) => (
+              <li key={p.id}>
+                <Link href={`/pribehy/${p.id}`} className="text-sm text-paper hover:text-accent">{p.nadpis}</Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </IndexCard>
+
+      <IndexCard label={`📝 Interpreti čekající na dokončení karty (${interpretiNavrh.length})`}>
+        {interpretiNavrh.length === 0 ? (
+          <p className="text-muted text-sm">Žádní ve stavu "návrh".</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {interpretiNavrh.map((i) => (
+              <li key={i.id}>
+                <Link href={`/interpreti/${i.id}`} className="text-sm text-paper hover:text-accent">{i.nazev}</Link>
+                <span className="text-muted text-xs font-mono ml-2">{new Date(i.createdAt).toLocaleDateString("cs-CZ")}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </IndexCard>
+
+      {udalostiNeoverene.length > 0 && (
+        <IndexCard label={`🗓 Ručně založené události ve stavu návrh (${udalostiNeoverene.length})`}>
+          <ul className="space-y-1.5">
+            {udalostiNeoverene.map((u) => (
+              <li key={u.id}>
+                <Link href={`/udalosti/${u.id}`} className="text-sm text-paper hover:text-accent">{u.nazev}</Link>
+              </li>
+            ))}
+          </ul>
+        </IndexCard>
+      )}
+    </div>
+  );
+}

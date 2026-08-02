@@ -10,6 +10,7 @@ const POLOZKY = [
   { href: "/udalosti", label: "Události" },
   { href: "/kalendar", label: "Kalendář" },
   { href: "/hledat", label: "Hledat" },
+  { href: "/kontrola", label: "Kontrola" },
 ];
 
 export default function Nav() {
