@@ -21,6 +21,13 @@ model Interpret {
   typ               String   @default("kapela") // kapela | solo | projekt
   rokVzniku         Int?
   stav              String   @default("aktivni") // aktivni | ukonceny | archivovany
+  zeme              String?
+  mesto             String?
+  zanry             String?
+  historie          String?
+  redakcniVyznam    String?
+  referencniId      String?  @unique
+  urovenKarty       String   @default("navrh")
   poznamka          String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

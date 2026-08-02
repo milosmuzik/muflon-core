@@ -37,17 +37,33 @@ export default async function InterpretDetail({ params }: { params: { id: string
         <p className="tab-label mb-2">
           <Link href="/interpreti" className="hover:text-accent">Interpreti</Link> / {interpret.nazev}
         </p>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <h1 className="font-display text-3xl text-paper">{interpret.nazev}</h1>
           <StatusBadge stav={interpret.stav} />
+          {interpret.urovenKarty === "referencni" && (
+            <span className="text-xs font-mono px-2 py-0.5 rounded-sm border border-accent/40 text-accent">
+              ⭐ Referenční karta
+            </span>
+          )}
+          {interpret.referencniId && (
+            <span className="text-xs font-mono text-muted">{interpret.referencniId}</span>
+          )}
         </div>
         <p className="text-muted text-sm mt-1">
           {interpret.typ} {interpret.rokVzniku ? `· od ${interpret.rokVzniku}` : ""}
+          {interpret.mesto && ` · ${interpret.mesto}`}
+          {interpret.zeme && `, ${interpret.zeme}`}
         </p>
+        {interpret.zanry && <p className="text-muted text-xs font-mono mt-1">{interpret.zanry}</p>}
       </div>
 
       <div className="grid lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 space-y-5">
+          {interpret.historie && (
+            <IndexCard label="Historie">
+              <p className="text-paper whitespace-pre-wrap leading-relaxed text-sm">{interpret.historie}</p>
+            </IndexCard>
+          )}
           <IndexCard label="Hudebníci · členství">
             {interpret.clenstvi.length === 0 ? (
               <p className="text-muted text-sm mb-4">Zatím nejsou evidovaní žádní hudebníci.</p>
@@ -117,6 +133,11 @@ export default async function InterpretDetail({ params }: { params: { id: string
         </div>
 
         <div className="space-y-5">
+          {interpret.redakcniVyznam && (
+            <IndexCard label="Redakční význam">
+              <p className="text-muted text-sm leading-relaxed">{interpret.redakcniVyznam}</p>
+            </IndexCard>
+          )}
           <IndexCard label="Upravit záznam">
             <form action={upravitInterpreta.bind(null, interpret.id)} className="space-y-2 text-sm">
               <input name="nazev" defaultValue={interpret.nazev} className="w-full bg-ink border border-line rounded-sm px-2 py-1.5 text-paper focus-ring" />
@@ -130,6 +151,18 @@ export default async function InterpretDetail({ params }: { params: { id: string
                 <option value="aktivni">Aktivní</option>
                 <option value="ukonceny">Ukončený</option>
                 <option value="archivovany">Archivovaný</option>
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <input name="mesto" defaultValue={interpret.mesto ?? ""} placeholder="Město vzniku" className="w-full bg-ink border border-line rounded-sm px-2 py-1.5 text-paper focus-ring" />
+                <input name="zeme" defaultValue={interpret.zeme ?? ""} placeholder="Země" className="w-full bg-ink border border-line rounded-sm px-2 py-1.5 text-paper focus-ring" />
+              </div>
+              <input name="zanry" defaultValue={interpret.zanry ?? ""} placeholder="Žánry (čárkou oddělené)" className="w-full bg-ink border border-line rounded-sm px-2 py-1.5 text-paper focus-ring" />
+              <textarea name="historie" defaultValue={interpret.historie ?? ""} rows={4} placeholder="Historie / charakteristika (redakčně zpracovaný text)" className="w-full bg-ink border border-line rounded-sm px-2 py-1.5 text-paper focus-ring" />
+              <textarea name="redakcniVyznam" defaultValue={interpret.redakcniVyznam ?? ""} rows={3} placeholder="Redakční význam (interní poznámka)" className="w-full bg-ink border border-line rounded-sm px-2 py-1.5 text-paper focus-ring" />
+              <input name="referencniId" defaultValue={interpret.referencniId ?? ""} placeholder="Referenční ID (např. CZ-KABAT-1983-001)" className="w-full bg-ink border border-line rounded-sm px-2 py-1.5 text-paper focus-ring font-mono text-xs" />
+              <select name="urovenKarty" defaultValue={interpret.urovenKarty} className="w-full bg-ink border border-line rounded-sm px-2 py-1.5 text-paper focus-ring">
+                <option value="navrh">Návrh</option>
+                <option value="referencni">⭐ Referenční karta</option>
               </select>
               <textarea name="poznamka" defaultValue={interpret.poznamka ?? ""} rows={3} placeholder="Poznámka" className="w-full bg-ink border border-line rounded-sm px-2 py-1.5 text-paper focus-ring" />
               <button className="w-full bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring">

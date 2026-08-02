@@ -33,6 +33,13 @@ export async function upravitInterpreta(id: string, formData: FormData) {
       typ: String(formData.get("typ") || "kapela"),
       rokVzniku: formData.get("rokVzniku") ? Number(formData.get("rokVzniku")) : null,
       stav: String(formData.get("stav") || "aktivni"),
+      zeme: String(formData.get("zeme") || "").trim() || null,
+      mesto: String(formData.get("mesto") || "").trim() || null,
+      zanry: String(formData.get("zanry") || "").trim() || null,
+      historie: String(formData.get("historie") || "").trim() || null,
+      redakcniVyznam: String(formData.get("redakcniVyznam") || "").trim() || null,
+      referencniId: String(formData.get("referencniId") || "").trim() || null,
+      urovenKarty: String(formData.get("urovenKarty") || "navrh"),
       poznamka: String(formData.get("poznamka") || "").trim() || null,
     },
   });
