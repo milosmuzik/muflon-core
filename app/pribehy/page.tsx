@@ -11,6 +11,19 @@ export default async function PribehyPage({ searchParams }: { searchParams: { st
     orderBy: { updatedAt: "desc" },
   });
 
+  const vazby = await prisma.vazba.findMany({
+    where: { zdrojovyTyp: "Pribeh", zdrojovyId: { in: pribehy.map((p) => p.id) }, cilovyTyp: "Interpret" },
+  });
+  const interpretIds = [...new Set(vazby.map((v) => v.cilovyId))];
+  const interpreti = await prisma.interpret.findMany({ where: { id: { in: interpretIds } } });
+  const nazevInterpreta = new Map(interpreti.map((i) => [i.id, i.nazev]));
+  const interpretPribehu = new Map<string, string>();
+  for (const v of vazby) {
+    if (!interpretPribehu.has(v.zdrojovyId)) {
+      interpretPribehu.set(v.zdrojovyId, nazevInterpreta.get(v.cilovyId) ?? "?");
+    }
+  }
+
   const STAVY = ["navrh", "overeno", "schvaleno", "publikovano", "archivovano"];
 
   return (
@@ -33,7 +46,18 @@ export default async function PribehyPage({ searchParams }: { searchParams: { st
         {pribehy.map((p) => (
           <Link key={p.id} href={`/pribehy/${p.id}`} className="index-card p-4 pl-6 flex items-start justify-between gap-4 hover:border-accent/50 transition-colors focus-ring block">
             <div>
-              <div className="font-display text-lg text-paper">{p.nadpis}</div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="font-display text-lg text-paper">{p.nadpis}</div>
+                {interpretPribehu.has(p.id) ? (
+                  <span className="text-xs font-mono px-1.5 py-0.5 rounded-sm border border-line text-muted">
+                    {interpretPribehu.get(p.id)}
+                  </span>
+                ) : (
+                  <span className="text-xs font-mono px-1.5 py-0.5 rounded-sm border border-rust/40 text-rust">
+                    bez interpreta
+                  </span>
+                )}
+              </div>
               <p className="text-muted text-sm mt-1 line-clamp-2">{p.obsah}</p>
             </div>
             <StatusBadge stav={p.stav} />
@@ -45,6 +69,7 @@ export default async function PribehyPage({ searchParams }: { searchParams: { st
       <IndexCard label="Napsat nový příběh">
         <form action={vytvoritPribeh} className="space-y-3 text-sm">
           <input name="nadpis" placeholder="Nadpis" required className="w-full bg-ink border border-line rounded-sm px-3 py-2 text-paper placeholder:text-muted/70 focus-ring" />
+          <input name="interpret" placeholder="Interpret, ke kterému příběh patří (nepovinné)" className="w-full bg-ink border border-line rounded-sm px-3 py-2 text-paper placeholder:text-muted/70 focus-ring" />
           <textarea name="obsah" placeholder="Redakčně zpracovaný text příběhu…" required rows={5} className="w-full bg-ink border border-line rounded-sm px-3 py-2 text-paper placeholder:text-muted/70 focus-ring" />
           <button className="bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-2 hover:bg-accentDim/50 transition-colors focus-ring">
             Uložit jako návrh

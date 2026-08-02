@@ -12,6 +12,17 @@ export async function vytvoritPribeh(formData: FormData) {
 
   const pribeh = await prisma.pribeh.create({ data: { nadpis, obsah } });
   await zapisHistorii("Pribeh", pribeh.id, "vytvoreno", `Založen příběh ${nadpis}`);
+
+  const interpretNazev = String(formData.get("interpret") || "").trim();
+  if (interpretNazev) {
+    const interpret = await prisma.interpret.findFirst({ where: { nazev: { contains: interpretNazev, mode: "insensitive" } } });
+    if (interpret) {
+      await prisma.vazba.create({
+        data: { zdrojovyTyp: "Pribeh", zdrojovyId: pribeh.id, cilovyTyp: "Interpret", cilovyId: interpret.id, typVztahu: "vypráví o" },
+      });
+    }
+  }
+
   revalidatePath("/pribehy");
   redirect(`/pribehy/${pribeh.id}`);
 }
