@@ -22,11 +22,13 @@ export default async function InterpretDetail({ params }: { params: { id: string
 
   const cesta = `/interpreti/${interpret.id}`;
 
-  const [zdroje, vazbyRaw, historie] = await Promise.all([
+  const [zdroje, vazbyRaw, historie, pribehyVazby] = await Promise.all([
     prisma.zdroj.findMany({ where: { cilovyTyp: "Interpret", cilovyId: interpret.id }, orderBy: { createdAt: "desc" } }),
     prisma.vazba.findMany({ where: { zdrojovyTyp: "Interpret", zdrojovyId: interpret.id }, orderBy: { createdAt: "desc" } }),
     prisma.historieZmeny.findMany({ where: { entitaTyp: "Interpret", entitaId: interpret.id }, orderBy: { createdAt: "desc" }, take: 20 }),
+    prisma.vazba.findMany({ where: { zdrojovyTyp: "Pribeh", cilovyTyp: "Interpret", cilovyId: interpret.id } }),
   ]);
+  const pribehy = await prisma.pribeh.findMany({ where: { id: { in: pribehyVazby.map((v) => v.zdrojovyId) } }, orderBy: { updatedAt: "desc" } });
   const vazby = await Promise.all(
     vazbyRaw.map(async (v) => ({ ...v, cilovyNazev: await nazevObjektu(v.cilovyTyp, v.cilovyId) }))
   );
@@ -127,6 +129,19 @@ export default async function InterpretDetail({ params }: { params: { id: string
               </ul>
             )}
           </IndexCard>
+
+          {pribehy.length > 0 && (
+            <IndexCard label={`Příběhy (${pribehy.length})`}>
+              <ul className="space-y-2">
+                {pribehy.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between gap-3 text-sm border-b border-line/60 pb-2 last:border-0">
+                    <Link href={`/pribehy/${p.id}`} className="text-paper hover:text-accent">{p.nadpis}</Link>
+                    <StatusBadge stav={p.stav} />
+                  </li>
+                ))}
+              </ul>
+            </IndexCard>
+          )}
 
           <VazbySekce zdrojovyTyp="Interpret" zdrojovyId={interpret.id} cesta={cesta} vazby={vazby} />
           <ZdrojeSekce cilovyTyp="Interpret" cilovyId={interpret.id} cesta={cesta} zdroje={zdroje} />
