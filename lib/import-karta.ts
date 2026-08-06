@@ -18,7 +18,7 @@ export type Clen = {
 
 export type Album = { nazev: string; rok?: string | null };
 
-export type Skladba = { nazev: string; album?: string | null };
+export type Skladba = { nazev: string; album?: string | null; hoste?: string[] };
 
 export type Udalost = {
   nazev: string;
@@ -139,10 +139,25 @@ export async function importujKartu(
           nazev: s.nazev,
           vPlaylistu: true,
           albumId: s.album ? albaId[s.album] ?? null : null,
+          poznamka: s.hoste && s.hoste.length > 0 ? `feat. ${s.hoste.join(", ")}` : null,
         },
       });
       await prisma.skladbaInterpret.create({ data: { skladbaId: skladba.id, interpretId: interpret.id } });
       pocetSkladeb++;
+
+      for (const jmenoHosta of s.hoste ?? []) {
+        let host = await prisma.hudebnik.findFirst({ where: { jmeno: jmenoHosta } });
+        if (!host) host = await prisma.hudebnik.create({ data: { jmeno: jmenoHosta } });
+        await prisma.vazba.create({
+          data: {
+            zdrojovyTyp: "Hudebnik",
+            zdrojovyId: host.id,
+            cilovyTyp: "Skladba",
+            cilovyId: skladba.id,
+            typVztahu: "hostuje na",
+          },
+        });
+      }
     }
   }
 
