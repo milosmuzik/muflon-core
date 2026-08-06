@@ -142,6 +142,7 @@ model Udalost {
   datum             String // YYYY-MM-DD, nebo MM-DD pro každoroční výročí
   opakujeSe         Boolean  @default(true)
   popis             String?
+  fotoUrl             String?
   stav              String   @default("navrh")
   zdrojAI           Boolean  @default(false) // založeno automaticky AI agentem
   zverejnitNaSitich Boolean  @default(false) // redakční výběr k publikaci na sociálních sítích
@@ -189,6 +190,7 @@ model HistorieZmeny {
   entitaId  String
   akce      String // vytvoreno | upraveno | smazano | zmena_stavu
   popis     String?
+  fotoUrl             String?
   createdAt DateTime @default(now())
 }
 
