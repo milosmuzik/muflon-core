@@ -33,7 +33,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
           fontFamily: "sans-serif",
         }}
       >
-        {udalost.fotoUrl && (
+        {false && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={udalost.fotoUrl}
