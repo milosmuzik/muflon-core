@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
-async functionnajdiNeboZaloz(nazev: string) {
+async function najdiNeboZaloz(nazev: string) {
   let i = await prisma.interpret.findFirst({ where: { nazev } });
   if (!i) i = await prisma.interpret.create({ data: { nazev } });
   return i;
