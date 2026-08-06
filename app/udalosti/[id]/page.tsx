@@ -6,9 +6,11 @@ import StatusBadge from "@/components/StatusBadge";
 import ZdrojeSekce from "@/components/ZdrojeSekce";
 import VazbySekce from "@/components/VazbySekce";
 import HistorieSekce from "@/components/HistorieSekce";
-import { upravitUdalost } from "@/lib/actions/udalosti";
+import { upravitUdalost, rozsiritUdalost } from "@/lib/actions/udalosti";
 import { nazevObjektu, posunoutStav } from "@/lib/actions/spolecne";
 import { prepnoutZverejneni } from "@/lib/actions/agent";
+import { nahratFotkuUdalosti } from "@/lib/actions/upload";
+import { publikovatNaFacebook, publikovatNaInstagram } from "@/lib/actions/socialni";
 import { DALSI_STAV, STAV_LABEL } from "@/lib/constants";
 
 export default async function UdalostDetail({ params }: { params: { id: string } }) {
@@ -16,10 +18,11 @@ export default async function UdalostDetail({ params }: { params: { id: string }
   if (!udalost) notFound();
 
   const cesta = `/udalosti/${udalost.id}`;
-  const [zdroje, vazbyRaw, historie] = await Promise.all([
+  const [zdroje, vazbyRaw, historie, publikace] = await Promise.all([
     prisma.zdroj.findMany({ where: { cilovyTyp: "Udalost", cilovyId: udalost.id }, orderBy: { createdAt: "desc" } }),
     prisma.vazba.findMany({ where: { zdrojovyTyp: "Udalost", zdrojovyId: udalost.id }, orderBy: { createdAt: "desc" } }),
     prisma.historieZmeny.findMany({ where: { entitaTyp: "Udalost", entitaId: udalost.id }, orderBy: { createdAt: "desc" }, take: 20 }),
+    prisma.publikace.findMany({ where: { udalostId: udalost.id }, orderBy: { createdAt: "desc" } }),
   ]);
   const vazby = await Promise.all(vazbyRaw.map(async (v) => ({ ...v, cilovyNazev: await nazevObjektu(v.cilovyTyp, v.cilovyId) })));
   const dalsiStav = DALSI_STAV[udalost.stav];
@@ -42,11 +45,33 @@ export default async function UdalostDetail({ params }: { params: { id: string }
 
       <div className="grid lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 space-y-5">
-          {udalost.popis && (
-            <IndexCard>
-              <p className="text-paper whitespace-pre-wrap leading-relaxed">{udalost.popis}</p>
-            </IndexCard>
-          )}
+          <IndexCard>
+            {udalost.popis ? (
+              <p className="text-paper whitespace-pre-wrap leading-relaxed mb-3">{udalost.popis}</p>
+            ) : (
+              <p className="text-muted text-sm mb-3">Zatím bez popisu.</p>
+            )}
+            <form action={rozsiritUdalost.bind(null, udalost.id)}>
+              <button className="text-xs bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring">
+                Zjisti více (AI)
+              </button>
+            </form>
+          </IndexCard>
+
+          <IndexCard label="Fotka pro sociální grafiku">
+            {udalost.fotoUrl ? (
+              <img src={udalost.fotoUrl} alt="" className="rounded-sm mb-3 max-h-64 object-cover" />
+            ) : (
+              <p className="text-muted text-sm mb-3">Zatím bez fotky – použij oficiální press foto interpreta.</p>
+            )}
+            <form action={nahratFotkuUdalosti.bind(null, udalost.id)} className="flex gap-2 items-center text-sm">
+              <input type="file" name="foto" accept="image/*" required className="text-muted text-xs" />
+              <button className="bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring shrink-0">
+                Nahrát
+              </button>
+            </form>
+          </IndexCard>
+
           <VazbySekce zdrojovyTyp="Udalost" zdrojovyId={udalost.id} cesta={cesta} vazby={vazby} />
           <ZdrojeSekce cilovyTyp="Udalost" cilovyId={udalost.id} cesta={cesta} zdroje={zdroje} />
         </div>
@@ -58,7 +83,7 @@ export default async function UdalostDetail({ params }: { params: { id: string }
                 ? "Vybráno ke zveřejnění na mufloních sítích."
                 : "Zatím nevybráno ke zveřejnění."}
             </p>
-            <form action={prepnoutZverejneni.bind(null, udalost.id, udalost.zverejnitNaSitich)}>
+            <form action={prepnoutZverejneni.bind(null, udalost.id, udalost.zverejnitNaSitich)} className="mb-4">
               <button
                 className={`w-full rounded-sm px-3 py-1.5 text-sm border focus-ring transition-colors ${
                   udalost.zverejnitNaSitich
@@ -69,6 +94,35 @@ export default async function UdalostDetail({ params }: { params: { id: string }
                 {udalost.zverejnitNaSitich ? "✓ Zveřejnit na sítích" : "Zveřejnit na sítích"}
               </button>
             </form>
+
+            <p className="tab-label mb-2">Náhled grafiky</p>
+            <img src={`/api/socialni/obrazek/${udalost.id}`} alt="" className="w-full rounded-sm border border-line mb-4" />
+
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <form action={publikovatNaFacebook.bind(null, udalost.id)}>
+                <button className="w-full text-xs bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring">
+                  Publikovat na Facebook
+                </button>
+              </form>
+              <form action={publikovatNaInstagram.bind(null, udalost.id)}>
+                <button className="w-full text-xs bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring">
+                  Publikovat na Instagram
+                </button>
+              </form>
+            </div>
+
+            {publikace.length > 0 && (
+              <ul className="space-y-1.5 text-xs font-mono">
+                {publikace.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between border-t border-line/60 pt-1.5">
+                    <span className="text-muted capitalize">{p.platforma}</span>
+                    <span className={p.stav === "publikovano" ? "text-sage" : "text-rust"}>
+                      {p.stav === "publikovano" ? "✓ publikováno" : `✗ ${p.chybaText?.slice(0, 60) ?? "chyba"}`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </IndexCard>
 
           <IndexCard label="Redakční workflow">

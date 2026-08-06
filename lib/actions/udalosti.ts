@@ -4,6 +4,37 @@ import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { zjistiVice } from "@/lib/agent/zjisti-vice";
+
+const PLATNE_KATEGORIE = new Set(["oficialni_web", "socialni_site", "archivni", "databaze", "media", "rozhovor", "kniha", "orientacni"]);
+
+export async function rozsiritUdalost(id: string) {
+  const udalost = await prisma.udalost.findUnique({ where: { id } });
+  if (!udalost) return;
+
+  const vysledek = await zjistiVice(udalost.nazev, udalost.popis);
+  if (!vysledek.rozsireni) return;
+
+  const novyPopis = udalost.popis ? `${udalost.popis}\n\n${vysledek.rozsireni}` : vysledek.rozsireni;
+  await prisma.udalost.update({ where: { id }, data: { popis: novyPopis } });
+
+  for (const z of vysledek.zdroje || []) {
+    if (!z.url) continue;
+    const existuje = await prisma.zdroj.findFirst({ where: { cilovyTyp: "Udalost", cilovyId: id, url: z.url } });
+    if (!existuje) {
+      await prisma.zdroj.create({
+        data: {
+          cilovyTyp: "Udalost", cilovyId: id, nazev: z.nazev, url: z.url,
+          kategorie: PLATNE_KATEGORIE.has(z.kategorie) ? z.kategorie : "orientacni",
+          uroverDuvery: "stredni", poznamka: "Doplněno přes „Zjisti více“.",
+        },
+      });
+    }
+  }
+
+  await zapisHistorii("Udalost", id, "upraveno", "Rozšířeno přes AI (Zjisti více)");
+  revalidatePath(`/udalosti/${id}`);
+}
 
 export async function vytvoritUdalost(formData: FormData) {
   const nazev = String(formData.get("nazev") || "").trim();
