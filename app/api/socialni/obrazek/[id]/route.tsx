@@ -33,15 +33,6 @@ export async function GET(_request: Request, { params }: { params: { id: string 
           fontFamily: "sans-serif",
         }}
       >
-        {false && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={udalost.fotoUrl}
-            width={1080}
-            height={1080}
-            style={{ position: "absolute", top: 0, left: 0, objectFit: "cover", opacity: 0.5 }}
-          />
-        )}
         <div
           style={{
             position: "absolute",
