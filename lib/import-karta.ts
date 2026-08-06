@@ -147,7 +147,7 @@ export async function importujKartu( prisma: PrismaClient, k: Karta ): Promise<V
   for (const u of k.udalosti ?? []) {
     const existuje = await prisma.udalost.findFirst({ where: { nazev: u.nazev } });
     if (!existuje) {
-      await prisma.udalost.create({
+      const novaUdalost = await prisma.udalost.create({
         data: {
           nazev: u.nazev,
           datum: u.datum,
@@ -155,6 +155,15 @@ export async function importujKartu( prisma: PrismaClient, k: Karta ): Promise<V
           opakujeSe: true,
           popis: u.popis ?? null,
           stav: "overeno",
+        },
+      });
+      await prisma.vazba.create({
+        data: {
+          zdrojovyTyp: "Udalost",
+          zdrojovyId: novaUdalost.id,
+          cilovyTyp: "Interpret",
+          cilovyId: interpret.id,
+          typVztahu: "tyka_se",
         },
       });
       pocetUdalosti++;
@@ -165,7 +174,16 @@ export async function importujKartu( prisma: PrismaClient, k: Karta ): Promise<V
   for (const p of k.pribehy ?? []) {
     const existuje = await prisma.pribeh.findFirst({ where: { nadpis: p.nadpis } });
     if (!existuje) {
-      await prisma.pribeh.create({ data: { nadpis: p.nadpis, obsah: p.obsah, stav: "overeno" } });
+      const novyPribeh = await prisma.pribeh.create({ data: { nadpis: p.nadpis, obsah: p.obsah, stav: "overeno" } });
+      await prisma.vazba.create({
+        data: {
+          zdrojovyTyp: "Pribeh",
+          zdrojovyId: novyPribeh.id,
+          cilovyTyp: "Interpret",
+          cilovyId: interpret.id,
+          typVztahu: "vypráví o",
+        },
+      });
       pocetPribehu++;
     }
   }

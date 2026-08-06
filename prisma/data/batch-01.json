@@ -1,0 +1,138 @@
+{
+  "karty": [
+    {
+      "nazev": "Allen & Lande",
+      "rokVzniku": 2005,
+      "zeme": null,
+      "mesto": null,
+      "zanry": "power metal, hard rock, progresivní metal",
+      "historie": "Allen/Lande je hudební projekt (supergroup) založený v roce 2005 italským vydavatelstvím Frontiers Records, spojující zpěváky Russella Allena (Symphony X) a Jørna Landeho (ex-Masterplan). Vydali čtyři studiová alba: The Battle (2005), The Revenge (2007), The Showdown (2010) a The Great Divide (2014).",
+      "urovenKarty": "referencni",
+      "clenove": [
+        { "jmeno": "Russell Allen", "role": "zpěv", "nastroj": "zpěv", "obdobiOd": "2005", "obdobiDo": null, "poznamka": "zpěvák kapely Symphony X" },
+        { "jmeno": "Jørn Lande", "role": "zpěv", "nastroj": "zpěv", "obdobiOd": "2005", "obdobiDo": null, "poznamka": "bývalý zpěvák kapely Masterplan" },
+        { "jmeno": "Magnus Karlsson", "role": "skladatel, producent", "nastroj": "kytara, klávesy, baskytara", "obdobiOd": "2005", "obdobiDo": "2013", "poznamka": null },
+        { "jmeno": "Jaime Salazar", "role": "člen", "nastroj": "bicí", "obdobiOd": "2005", "obdobiDo": "2013", "poznamka": null },
+        { "jmeno": "Timo Tolkki", "role": "skladatel, producent", "nastroj": "kytara, baskytara, klávesy", "obdobiOd": "2013", "obdobiDo": null, "poznamka": "bývalý člen Stratovarius" },
+        { "jmeno": "Jami Huovinen", "role": "člen", "nastroj": "bicí", "obdobiOd": "2013", "obdobiDo": null, "poznamka": null }
+      ],
+      "alba": [
+        { "nazev": "The Battle", "rok": "2005" },
+        { "nazev": "The Revenge", "rok": "2007" },
+        { "nazev": "The Showdown", "rok": "2010" },
+        { "nazev": "The Great Divide", "rok": "2014" }
+      ],
+      "skladby": [
+        { "nazev": "Bloodlines", "album": null },
+        { "nazev": "Solid Ground", "album": null },
+        { "nazev": "The Guardian", "album": null },
+        { "nazev": "The Showdown", "album": "The Showdown" }
+      ],
+      "udalosti": [
+        { "nazev": "Vznik projektu Allen/Lande a vydání alba The Battle", "datum": "2005", "typ": "vyroci_alba", "popis": "Projekt vznikl z iniciativy vydavatelství Frontiers Records, hudbu psal a produkoval Magnus Karlsson." },
+        { "nazev": "Vydání alba The Revenge", "datum": "2007", "typ": "vyroci_alba", "popis": null },
+        { "nazev": "Vydání alba The Showdown", "datum": "2010", "typ": "vyroci_alba", "popis": "Poslední album s Magnusem Karlssonem a Jaimem Salazarem v sestavě." },
+        { "nazev": "Vydání alba The Great Divide", "datum": "2014", "typ": "vyroci_alba", "popis": "Nová sestava s Timem Tolkkim, čtvrté a zatím poslední album projektu." }
+      ],
+      "pribehy": [
+        { "nadpis": "Projekt, který spojil dva vokální giganty", "obsah": "Allen/Lande vznikl jako nápad italského vydavatelství Frontiers Records, které chtělo spojit dva výrazné hlasy metalové scény – Russella Allena ze Symphony X a Jørna Landeho z Masterplan. Ačkoli žádný z členů není z Itálie, projekt spojuje právě italské vydavatelství." },
+        { "nadpis": "Konec bez ohlášeného konce", "obsah": "V roce 2019 Jørn Lande oznámil, že se plánuje čtvrté album stalo posledním – k rozchodu ale nedošlo formálně, Lande jen uvedl, že u něj chybí nadšení pro další pokračování." }
+      ],
+      "zdroje": [
+        { "nazev": "Allen/Lande – Encyclopaedia Metallum", "url": "https://www.metal-archives.com/bands/Allen_-_Lande/47043", "kategorie": "metal_archives", "uroverDuvery": "vysoka" },
+        { "nazev": "Allen (collaborative projects) – Wikipedia", "url": "https://en.wikipedia.org/wiki/Allen_(collaborative_projects)", "kategorie": "wikipedia", "uroverDuvery": "stredni" }
+      ]
+    },
+    {
+      "nazev": "Amaranthe",
+      "rokVzniku": 2008,
+      "zeme": "Švédsko",
+      "mesto": "Göteborg",
+      "zanry": "metalcore, melodic death metal, power metal, symfonický metal, pop metal",
+      "historie": "Amaranthe je švédská metalová kapela z Göteborgu, založená v roce 2008 pod názvem Avalanche kytaristou Olofem Mörckem a zpěvákem Jakem E. Kapela je známá kombinací tří vokálních stylů (čistý zpěv, growl, ženský zpěv) a syntézou různých metalových žánrů s popovými melodiemi. Vydali sedm studiových alb a prodali přes 500 000 nosičů po celém světě.",
+      "urovenKarty": "referencni",
+      "clenove": [
+        { "jmeno": "Olof Mörck", "role": "kytara, klávesy (zakládající člen)", "nastroj": "kytara, klávesy", "obdobiOd": "2008", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Elize Ryd", "role": "zpěv", "nastroj": "zpěv", "obdobiOd": "2008", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Morten Løwe Sørensen", "role": "bicí", "nastroj": "bicí", "obdobiOd": "2008", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Johan Andreassen", "role": "baskytara", "nastroj": "baskytara", "obdobiOd": "2008", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Nils Molin", "role": "zpěv (harsh vokály)", "nastroj": "zpěv", "obdobiOd": "2017", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Mikael Sehlin", "role": "zpěv (harsh vokály)", "nastroj": "zpěv", "obdobiOd": "Nepodařilo se spolehlivě ověřit", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Andreas Solveström", "role": "zpěv (harsh vokály, zakládající člen)", "nastroj": "zpěv", "obdobiOd": "2008", "obdobiDo": "2013", "poznamka": null },
+        { "jmeno": "Joacim \"Jake E\" Lundberg", "role": "zpěv, spoluzakladatel", "nastroj": "zpěv", "obdobiOd": "2008", "obdobiDo": "2017", "poznamka": null },
+        { "jmeno": "Henrik \"GG6\" Englund Wilhelmsson", "role": "zpěv (harsh vokály)", "nastroj": "zpěv", "obdobiOd": "2013", "obdobiDo": "Nepodařilo se spolehlivě ověřit", "poznamka": null }
+      ],
+      "alba": [
+        { "nazev": "Amaranthe", "rok": "2011" },
+        { "nazev": "The Nexus", "rok": "2013" },
+        { "nazev": "Massive Addictive", "rok": "2014" },
+        { "nazev": "Maximalism", "rok": "2016" }
+      ],
+      "skladby": [
+        { "nazev": "1 000 000 Lightyears", "album": null },
+        { "nazev": "Amaranthine", "album": null },
+        { "nazev": "Call Out My Name", "album": null },
+        { "nazev": "Chaos Theory", "album": null },
+        { "nazev": "Damnation Flame", "album": null },
+        { "nazev": "Digital World", "album": "The Nexus" },
+        { "nazev": "Drop Dead Cynical", "album": "Massive Addictive" },
+        { "nazev": "Leave Everything Behind", "album": null },
+        { "nazev": "The Nexus", "album": "The Nexus" },
+        { "nazev": "Trinity", "album": "The Nexus" }
+      ],
+      "udalosti": [
+        { "nazev": "Založení kapely pod názvem Avalanche", "datum": "2008", "typ": "jina", "popis": "Kapelu založili Olof Mörck a Jake E, později se přidali Elize Ryd, Andreas Solveström a Morten Løwe Sørensen." },
+        { "nazev": "Přejmenování na Amaranthe", "datum": "2009", "typ": "jina", "popis": "Kvůli právním problémům s názvem Avalanche se kapela přejmenovala na Amaranthe." },
+        { "nazev": "Vydání debutového alba Amaranthe", "datum": "2011", "typ": "vyroci_alba", "popis": null },
+        { "nazev": "Odchod Andrease Solveströma, nástup Henrika Englunda", "datum": "2013", "typ": "jina", "popis": null },
+        { "nazev": "Vydání alba The Nexus", "datum": "2013", "typ": "vyroci_alba", "popis": "První album kapely v první desítce švédských a finských hitparád." },
+        { "nazev": "Vydání alba Massive Addictive", "datum": "2014", "typ": "vyroci_alba", "popis": "Singl Drop Dead Cynical se dostal na Billboard Mainstream Rock." },
+        { "nazev": "Odchod Jakea E., nástup Nilse Molina", "datum": "2017", "typ": "jina", "popis": "Jake E. založil novou kapelu Cyhra." }
+      ],
+      "pribehy": [
+        { "nadpis": "Jméno vynucené právníky", "obsah": "Kapela se původně jmenovala Avalanche, ale v roce 2009 musela název kvůli právním komplikacím změnit. Členové zvolili neobvyklé francouzské příjmení Amaranthe, které se stalo jejich definitivní identitou." },
+        { "nadpis": "Tři hlasy jako ochranná známka", "obsah": "Amaranthe je typická kombinací tří vokálních stylů najednou – čistého zpěvu, drsného growlu a ženského zpěvu – což se stalo jejich hudebním podpisem a inspirovalo řadu dalších kapel k podobnému přístupu." }
+      ],
+      "zdroje": [
+        { "nazev": "Amaranthe – Wikipedia", "url": "https://en.wikipedia.org/wiki/Amaranthe", "kategorie": "wikipedia", "uroverDuvery": "stredni" },
+        { "nazev": "Amaranthe discography – Wikipedia", "url": "https://en.wikipedia.org/wiki/Amaranthe_discography", "kategorie": "wikipedia", "uroverDuvery": "stredni" }
+      ]
+    },
+    {
+      "nazev": "Ambush",
+      "rokVzniku": 2012,
+      "zeme": "Švédsko",
+      "mesto": "Växjö",
+      "zanry": "tradiční heavy metal",
+      "vydavatelstvi": "High Roller Records",
+      "historie": "Ambush je švédská heavymetalová kapela ze Växjö, hrající tradiční heavy metal v duchu NWOBHM. Debutové album Firestorm vydali u High Roller Records.",
+      "urovenKarty": "referencni",
+      "clenove": [
+        { "jmeno": "Oskar Jacobsson", "role": "zpěv", "nastroj": "zpěv", "obdobiOd": "2013", "obdobiDo": null, "poznamka": "ROZPOR: jeden zdroj uvádí založení kapely v roce 2012, sestava členů je datovaná od 2013 - ověřit" },
+        { "jmeno": "Adam Hagelin", "role": "kytara", "nastroj": "kytara", "obdobiOd": "2013", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Olof Engkvist", "role": "kytara", "nastroj": "kytara", "obdobiOd": "2013", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Ludwig Sjöholm", "role": "baskytara", "nastroj": "baskytara", "obdobiOd": "2013", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Linus Fritzson", "role": "bicí", "nastroj": "bicí", "obdobiOd": "2013", "obdobiDo": null, "poznamka": null }
+      ],
+      "alba": [
+        { "nazev": "Firestorm", "rok": "Nepodařilo se spolehlivě ověřit" },
+        { "nazev": "Desecrator", "rok": null },
+        { "nazev": "Infidel", "rok": null },
+        { "nazev": "Evil in All Dimensions", "rok": null }
+      ],
+      "skladby": [
+        { "nazev": "A Silent Killer", "album": null },
+        { "nazev": "Hellbiter", "album": null },
+        { "nazev": "Infidel", "album": "Infidel" }
+      ],
+      "udalosti": [
+        { "nazev": "Založení kapely Ambush ve Växjö", "datum": "2012", "typ": "jina", "popis": "Kapela hrající tradiční heavy metal v duchu NWOBHM." }
+      ],
+      "pribehy": [],
+      "zdroje": [
+        { "nazev": "Ambush – Metal Kingdom", "url": "https://www.metalkingdom.net/band/ambush-19951", "kategorie": "media", "uroverDuvery": "stredni" },
+        { "nazev": "Ambush – Wikidata", "url": "https://www.wikidata.org/wiki/Q21001235", "kategorie": "media", "uroverDuvery": "stredni" }
+      ]
+    }
+  ]
+}
