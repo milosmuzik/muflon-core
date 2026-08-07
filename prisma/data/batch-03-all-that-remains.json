@@ -1,0 +1,80 @@
+{
+  "karty": [
+    {
+      "nazev": "All That Remains",
+      "rokVzniku": 1998,
+      "zeme": "USA",
+      "mesto": "Springfield, Massachusetts",
+      "zanry": "melodic metalcore, hard rock, heavy metal, melodic death metal (na počátku)",
+      "vydavatelstvi": "Prosthetic Records, Razor & Tie",
+      "historie": "Americká metalcorová kapela ze Springfieldu v Massachusetts, založená v roce 1998 zpěvákem Philem Labontem. Vydala deset studiových alb a prodala přes milion nosičů po celém světě. Proslavila se albem The Fall of Ideals (2006), považovaným za jednu z klíčových desek žánru metalcore, a hitem \"Stand Up\", který se v roce 2012 dostal na 1. místo žebříčku Billboard Mainstream Rock.",
+      "urovenKarty": "referencni",
+      "clenove": [
+        { "jmeno": "Philip Labonte", "role": "zpěv", "nastroj": "vokály", "obdobiOd": "1998", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Mike Martin", "role": "rytmická kytara", "nastroj": "kytara", "obdobiOd": "2004", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Matt Deis", "role": "baskytara", "nastroj": "basová kytara", "obdobiOd": "2022", "obdobiDo": null, "poznamka": "druhé období v kapele" },
+        { "jmeno": "Anthony Barone", "role": "bicí", "nastroj": "bicí", "obdobiOd": "2023", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Ken Susi", "role": "sólová kytara", "nastroj": "kytara", "obdobiOd": "2026", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Oli Herbert", "role": "sólová kytara (zakládající člen)", "nastroj": "kytara", "obdobiOd": "1998", "obdobiDo": "2018", "poznamka": "zemřel v roce 2018" },
+        { "jmeno": "Dan Egan", "role": "baskytara", "nastroj": "basová kytara", "obdobiOd": "1998", "obdobiDo": "2002", "poznamka": null },
+        { "jmeno": "Chris Bartlett", "role": "sólová kytara", "nastroj": "kytara", "obdobiOd": "1998", "obdobiDo": "2002", "poznamka": null },
+        { "jmeno": "Michael Bartlett", "role": "bicí", "nastroj": "bicí", "obdobiOd": "1998", "obdobiDo": "2002", "poznamka": null },
+        { "jmeno": "Matt Deis", "role": "baskytara", "nastroj": "basová kytara", "obdobiOd": "2002", "obdobiDo": "2005", "poznamka": "první období v kapele" },
+        { "jmeno": "Josh Venn", "role": "baskytara (dočasný náhradník)", "nastroj": "basová kytara", "obdobiOd": "2005", "obdobiDo": "2005", "poznamka": null },
+        { "jmeno": "Shannon Lucas", "role": "bicí", "nastroj": "bicí", "obdobiOd": "Nepodařilo se spolehlivě ověřit", "obdobiDo": "2006", "poznamka": null },
+        { "jmeno": "Jeanne Sagan", "role": "baskytara", "nastroj": "basová kytara", "obdobiOd": "2006", "obdobiDo": "2015", "poznamka": null },
+        { "jmeno": "Aaron Patrick", "role": "baskytara", "nastroj": "basová kytara", "obdobiOd": "2015", "obdobiDo": "2022", "poznamka": null },
+        { "jmeno": "Jason Costa", "role": "bicí", "nastroj": "bicí", "obdobiOd": "2006", "obdobiDo": "2023", "poznamka": null },
+        { "jmeno": "Jason Richardson", "role": "sólová kytara", "nastroj": "kytara", "obdobiOd": "2019", "obdobiDo": "2025", "poznamka": null },
+        { "jmeno": "Tim Yeung", "role": "bicí (touring)", "nastroj": "bicí", "obdobiOd": "Nepodařilo se spolehlivě ověřit", "obdobiDo": "Nepodařilo se spolehlivě ověřit", "poznamka": null }
+      ],
+      "alba": [
+        { "nazev": "Behind Silence and Solitude", "rok": "2002" },
+        { "nazev": "This Darkened Heart", "rok": "2004" },
+        { "nazev": "The Fall of Ideals", "rok": "2006" },
+        { "nazev": "Overcome", "rok": "2008" },
+        { "nazev": "For We Are Many", "rok": "2010" },
+        { "nazev": "A War You Cannot Win", "rok": "2012" },
+        { "nazev": "The Order of Things", "rok": "2015" },
+        { "nazev": "Madness", "rok": "2017" },
+        { "nazev": "Victim of the New Disease", "rok": "2018" },
+        { "nazev": "Antifragile", "rok": "2025" }
+      ],
+      "udalosti": [
+        { "nazev": "Založení kapely All That Remains", "datum": "1998", "typ": "jina", "popis": "Založil ji zpěvák Phil Labonte ve Springfieldu, Massachusetts." },
+        { "nazev": "Vydání debutového alba Behind Silence and Solitude", "datum": "2002", "typ": "vyroci_alba", "popis": "Vydáno u Prosthetic Records." },
+        { "nazev": "Vydání alba This Darkened Heart", "datum": "2004", "typ": "vyroci_alba", "popis": "Mike Martin se stává kytaristou." },
+        { "nazev": "Vydání alba The Fall of Ideals", "datum": "2006", "typ": "vyroci_alba", "popis": "Průlomová deska žánru metalcore, Billboard 200 #75." },
+        { "nazev": "Vydání alba Overcome", "datum": "2008", "typ": "vyroci_alba", "popis": "Singl Two Weeks - první hit na Mainstream Rock Charts." },
+        { "nazev": "Vydání alba For We Are Many", "datum": "2010", "typ": "vyroci_alba", "popis": "Komerčně nejúspěšnější album kapely, Billboard 200 #10." },
+        { "nazev": "Vydání alba A War You Cannot Win", "datum": "2012", "typ": "vyroci_alba", "popis": "Singl Stand Up se dostal na 1. místo Mainstream Rock Charts." },
+        { "nazev": "Vydání alba The Order of Things", "datum": "2015", "typ": "vyroci_alba", "popis": "Odchod baskytaristky Jeanne Sagan." },
+        { "nazev": "Vydání alba Madness", "datum": "2017", "typ": "vyroci_alba", "popis": null },
+        { "nazev": "Úmrtí kytaristy Oli Herberta a vydání alba Victim of the New Disease", "datum": "2018", "typ": "umrti", "popis": "Zakládající kytarista zemřel ve věku 44 let." },
+        { "nazev": "Jason Richardson se oficiálně stává kytaristou", "datum": "2019", "typ": "jina", "popis": null },
+        { "nazev": "Návrat baskytaristy Matta Deise do sestavy", "datum": "2022", "typ": "jina", "popis": null },
+        { "nazev": "Odchod bubeníka Jasona Costy, nástup Anthonyho Barona", "datum": "2023", "typ": "jina", "popis": null },
+        { "nazev": "Vydání desátého alba Antifragile", "datum": "2025", "typ": "vyroci_alba", "popis": null },
+        { "nazev": "Ken Susi se stává novým kytaristou", "datum": "2026", "typ": "jina", "popis": null }
+      ],
+      "pribehy": [
+        { "nadpis": "Jak vznikla kapela po odchodu z jiné skupiny", "obsah": "Zpěvák Phil Labonte byl původně vokalistou kapely Shadows Fall a objevil se na jejich albu Somber Eyes to the Sky. Po odchodu kvůli hudebním neshodám se plně věnoval All That Remains, které do té doby vedl jako vedlejší projekt." },
+        { "nadpis": "Jak kapelu \"zachránil\" zpěvák GWAR", "obsah": "Během turné s kapelou GWAR v roce 2004 dostal kytarista Oli Herbert od manželky ultimátum, že se s ním rozejde, pokud se okamžitě nevrátí domů. Byl už rozhodnutý odjet, ale zpěvák GWAR Dave Brockie ho přesvědčil, aby na turné zůstal. Podle Phila Labonteho tento rozhovor doslova zachránil kariéru kapely v jejím raném stádiu." },
+        { "nadpis": "Tři vyprodané noci v legendární londýnské Astorii", "obsah": "Během turné na podporu alba All That Remains (2007) kapela odehrála tři vyprodaná vystoupení v londýnském klubu Astoria, kde předtím hráli i Metallica nebo The Beatles. Časopis Kerrang! je při jejich vystoupení na festivalu Download 2005 označil za \"překvapení dne\"." },
+        { "nadpis": "Oli Herbert byl prvním členem kapely", "obsah": "Podle pozdějšího vyjádření Phila Labonteho pro Revolver byl kytarista Oli Herbert vůbec prvním hudebníkem, který se ke kapele přidal - ještě předtím, než měla All That Remains kompletní sestavu. Jeho tragické úmrtí v roce 2018 popsal Labonte jako tu vůbec největší věc, která kapelu potkala." }
+      ],
+      "zdroje": [
+        { "nazev": "Oficiální web", "url": "https://allthatremainsonline.com/", "kategorie": "oficialni_web", "uroverDuvery": "vysoka" },
+        { "nazev": "Oficiální Facebook", "url": "https://www.facebook.com/allthatremains", "kategorie": "oficialni_facebook", "uroverDuvery": "vysoka" },
+        { "nazev": "Oficiální Instagram", "url": "https://www.instagram.com/allthatremainsofficial/", "kategorie": "oficialni_instagram", "uroverDuvery": "vysoka" },
+        { "nazev": "Oficiální YouTube", "url": "https://music.youtube.com/@allthatremainsmusic", "kategorie": "oficialni_youtube", "uroverDuvery": "vysoka" },
+        { "nazev": "Discogs", "url": "https://www.discogs.com/artist/269118-All-That-Remains", "kategorie": "discogs", "uroverDuvery": "vysoka" },
+        { "nazev": "MusicBrainz", "url": "https://musicbrainz.org/artist/4f8b7186-b2a2-40db-97ae-6e1cd46d57b1", "kategorie": "musicbrainz", "uroverDuvery": "vysoka" },
+        { "nazev": "Metal Archives", "url": "https://www.metal-archives.com/bands/All_That_Remains/1283", "kategorie": "metal_archives", "uroverDuvery": "vysoka" },
+        { "nazev": "AllMusic", "url": "https://www.allmusic.com/artist/all-that-remains-mn0000001498", "kategorie": "allmusic", "uroverDuvery": "vysoka" },
+        { "nazev": "Wikipedia (doplňkově)", "url": "https://en.wikipedia.org/wiki/All_That_Remains_(band)", "kategorie": "wikipedia", "uroverDuvery": "stredni" },
+        { "nazev": "Revolver (doplňkově, k příběhu)", "url": "https://www.revolvermag.com/music/how-tragedy-and-turmoil-made-all-that-remains-antifragile/", "kategorie": "media", "uroverDuvery": "stredni" }
+      ]
+    }
+  ]
+}

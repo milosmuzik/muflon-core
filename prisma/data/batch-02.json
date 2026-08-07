@@ -1,0 +1,50 @@
+{
+  "karty": [
+    {
+      "nazev": "All For Metal",
+      "rokVzniku": 2022,
+      "zeme": "Německo / Itálie (mezinárodní projekt)",
+      "mesto": null,
+      "zanry": "heavy metal",
+      "vydavatelstvi": "Reigning Phoenix Music",
+      "historie": "All For Metal je mezinárodní heavymetalový projekt založený v roce 2022 Timem \"Tetzelem\" Schmidtem (zpěvák kapely Asenblut) a Antoniem Calannou. Debutové album Legends vyšlo v roce 2023, druhé album Gods of Metal (Year of the Dragon) v roce 2024 u vydavatelství Reigning Phoenix Music. Kapela je tematicky spojená s severskou mytologií a válečnou tematikou.",
+      "urovenKarty": "referencni",
+      "clenove": [
+        { "jmeno": "Tim \"Tetzel\" Schmidt", "role": "zpěv, spoluzakladatel", "nastroj": "zpěv", "obdobiOd": "2022", "obdobiDo": null, "poznamka": "zpěvák kapely Asenblut" },
+        { "jmeno": "Antonio Calanna", "role": "zpěv, spoluzakladatel", "nastroj": "zpěv", "obdobiOd": "2022", "obdobiDo": "2026", "poznamka": "zpěvák kapely DeVicious; kapelu opustil v lednu 2026" },
+        { "jmeno": "Jasmin Pabst", "role": "kytara", "nastroj": "kytara", "obdobiOd": "Nepodařilo se spolehlivě ověřit", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Ursula Zanichelli", "role": "kytara", "nastroj": "kytara", "obdobiOd": "Nepodařilo se spolehlivě ověřit", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Florian Toma", "role": "baskytara", "nastroj": "baskytara", "obdobiOd": "Nepodařilo se spolehlivě ověřit", "obdobiDo": null, "poznamka": null },
+        { "jmeno": "Leif Jensen", "role": "bicí", "nastroj": "bicí", "obdobiOd": "Nepodařilo se spolehlivě ověřit", "obdobiDo": null, "poznamka": null }
+      ],
+      "alba": [
+        { "nazev": "Legends", "rok": "2023" },
+        { "nazev": "Gods of Metal (Year of the Dragon)", "rok": "2024" }
+      ],
+      "skladby": [
+        { "nazev": "Valkyries In The Sky", "album": "Gods of Metal (Year of the Dragon)", "hoste": ["Laura Guldemond", "Tim Hansen"] }
+      ],
+      "udalosti": [
+        { "nazev": "Založení kapely All For Metal", "datum": "2022", "typ": "jina", "popis": "Kapelu založili Tim \"Tetzel\" Schmidt a Antonio Calanna." },
+        { "nazev": "Živý debut na Wacken Open Air", "datum": "2023", "typ": "jina", "popis": null },
+        { "nazev": "Vydání debutového alba Legends", "datum": "2023", "typ": "vyroci_alba", "popis": null },
+        { "nazev": "Podpis smlouvy s Reigning Phoenix Music", "datum": "2024", "typ": "jina", "popis": null },
+        { "nazev": "Vydání alba Gods of Metal (Year of the Dragon)", "datum": "2024", "typ": "vyroci_alba", "popis": "Obsahuje singl Valkyries In The Sky s hostujícími Laurou Guldemond (Burning Witches) a Timem Hansenem (Induction)." },
+        { "nazev": "Odchod Antonia Calanny z kapely", "datum": "2026", "typ": "jina", "popis": "Kapela hledá nového spoluzpěváka vedle Tima Schmidta." }
+      ],
+      "pribehy": [
+        { "nadpis": "Spojení dvou zpěváků z různých žánrů", "obsah": "All For Metal vzniklo spojením Tima \"Tetzela\" Schmidta, zpěváka německé kapely Asenblut, a Antonia Calanny, zpěváka hardrockové kapely DeVicious. Oba spojila společná láska ke klasickému heavy metalu a touha přinést ho nové generaci posluchačů." }
+      ],
+      "zdroje": [
+        { "nazev": "All for Metal – Encyclopaedia Metallum", "url": "https://www.metal-archives.com/bands/All_for_Metal/3540509742", "kategorie": "metal_archives", "uroverDuvery": "vysoka" },
+        { "nazev": "All for Metal – Last.fm", "url": "https://www.last.fm/music/All+for+Metal/+wiki", "kategorie": "media", "uroverDuvery": "stredni" }
+      ]
+    },
+    {
+      "nazev": "All That Remains",
+      "skladby": [
+        { "nazev": "Just Tell Me Something", "album": null, "hoste": ["Danny Worsnop"] }
+      ]
+    }
+  ]
+}

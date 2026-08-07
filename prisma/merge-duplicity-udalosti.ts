@@ -1,16 +1,16 @@
 /**
- * Merge skript: sloučí duplicitní Události nalezené audit skriptem.
+ * Merge skript v4: sloučí shluky duplicitních Událostí se STEJNÝM datem.
+ * Shluky s rozdílem 1 den (⚠️ POZOR RŮZNÉ DNY) se NIKDY neslučují
+ * automaticky — jen se vypíšou, protože rozhodnutí, které datum je
+ * správné, je věcné a musí ho udělat člověk. Po rozhodnutí uprav datum
+ * ručně na webu/v databázi a spusť skript znovu — pak už půjde o shluk
+ * se stejným dnem a sloučí se normálně.
  *
- * VÝCHOZÍ REŽIM = DRY-RUN. Jen vypíše, co by udělal, nic nezmění.
+ * VÝCHOZÍ REŽIM = DRY-RUN.
  *   npx tsx prisma/merge-duplicity-udalosti.ts
  *
- * Skutečné provedení (přesune Zdroj/Vazba na kanonický záznam a smaže duplicitu):
+ * Skutečné provedení (jen shluky se stejným dnem):
  *   npx tsx prisma/merge-duplicity-udalosti.ts --provest
- *
- * Používá stejnou detekční logiku jako prisma/audit-duplicity-udalosti.ts,
- * takže není potřeba ručně opisovat ID — pár se najde znovu při každém běhu.
- * Pokud mezi audit a merge během přibydou/uberou události, výsledek se může
- * lišit — pro jistotu doporučuju spustit audit skript těsně předtím.
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -25,54 +25,88 @@ interface UdalostRow {
   id: string;
   nazev: string;
   datum: string;
-  denMesic: string;
+  denCislo: number;
   typ: string;
   stav: string;
   pocetZdroju: number;
   pocetVazeb: number;
   interpretNazvy: string[];
+  entitaSubstring: string | null;
   createdAt: Date;
 }
 
-// ---------- normalizace + parsování data (shodné s audit skriptem) ----------
-
 const STOPWORDA = [
   "vydani", "vydal", "vydali", "album", "alba", "od", "kapely", "kapela",
-  "narozeni", "narozeniny", "umrti", "legendarniho", "legendarni",
-  "debutove", "debutoveho", "debut", "zalozeni", "zalozili", "the", "a",
+  "narozeni", "narozeniny", "umrti", "zemrel", "zemrela", "legendarniho",
+  "legendarni", "debutove", "debutoveho", "debut", "zalozeni", "zalozili",
+  "the", "a", "posledni", "koncert", "varianta", "verze",
 ];
 
-function normalizuj(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+const DNY_V_MESICI = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+function odstranDiakritiku(text: string): string {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizuj(text: string): string[] {
+  return odstranDiakritiku(text.toLowerCase())
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
-    .filter((slovo) => slovo && !STOPWORDA.includes(slovo))
-    .sort()
-    .join(" ");
+    .filter((slovo) => slovo && !STOPWORDA.includes(slovo));
 }
 
-function denMesicZData(datum: string): string {
-  const casti = datum.split("-");
-  if (casti.length === 3) return `${casti[1]}-${casti[2]}`;
-  if (casti.length === 2) return datum;
-  return datum;
+function trigramyTokenu(tok: string): string[] {
+  if (tok.length <= 3) return [tok];
+  const grams: string[] = [];
+  for (let i = 0; i <= tok.length - 3; i++) grams.push(tok.slice(i, i + 3));
+  return grams;
 }
 
-function podobnost(a: string, b: string): number {
-  const setA = new Set(a.split(" ").filter(Boolean));
-  const setB = new Set(b.split(" ").filter(Boolean));
-  if (setA.size === 0 && setB.size === 0) return 1;
-  if (setA.size === 0 || setB.size === 0) return 0;
-  const prunik = [...setA].filter((slovo) => setB.has(slovo)).length;
-  const sjednoceni = new Set([...setA, ...setB]).size;
+function trigramySady(tokeny: string[]): Set<string> {
+  const grams = new Set<string>();
+  for (const tok of tokeny) for (const g of trigramyTokenu(tok)) grams.add(g);
+  return grams;
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 && b.size === 0) return 1;
+  if (a.size === 0 || b.size === 0) return 0;
+  let prunik = 0;
+  for (const g of a) if (b.has(g)) prunik++;
+  const sjednoceni = a.size + b.size - prunik;
   return prunik / sjednoceni;
 }
 
+function podobnostNazvu(a: string, b: string): number {
+  return jaccard(trigramySady(normalizuj(a)), trigramySady(normalizuj(b)));
+}
+
+function denCisloZData(datum: string): number {
+  const casti = datum.split("-");
+  let mesic: number, den: number;
+  if (casti.length === 3) {
+    mesic = parseInt(casti[1], 10);
+    den = parseInt(casti[2], 10);
+  } else if (casti.length === 2) {
+    mesic = parseInt(casti[0], 10);
+    den = parseInt(casti[1], 10);
+  } else {
+    return -1;
+  }
+  if (!mesic || !den || mesic < 1 || mesic > 12) return -1;
+  let soucet = 0;
+  for (let i = 0; i < mesic - 1; i++) soucet += DNY_V_MESICI[i];
+  return soucet + den;
+}
+
+function rozdilDni(a: number, b: number): number {
+  if (a < 0 || b < 0) return 999;
+  const rozdil = Math.abs(a - b);
+  return Math.min(rozdil, 365 - rozdil);
+}
+
 async function nacistUdalosti(): Promise<UdalostRow[]> {
-  const [udalosti, zdroje, vazby] = await Promise.all([
+  const [udalosti, zdroje, vazby, interpreti, hudebnici] = await Promise.all([
     prisma.udalost.findMany({
       select: { id: true, nazev: true, datum: true, typ: true, stav: true, createdAt: true },
     }),
@@ -81,6 +115,8 @@ async function nacistUdalosti(): Promise<UdalostRow[]> {
       where: { OR: [{ zdrojovyTyp: TYP_UDALOST }, { cilovyTyp: TYP_UDALOST }] },
       select: { zdrojovyTyp: true, zdrojovyId: true, cilovyTyp: true, cilovyId: true },
     }),
+    prisma.interpret.findMany({ select: { id: true, nazev: true } }),
+    prisma.hudebnik.findMany({ select: { id: true, jmeno: true } }),
   ]);
 
   const pocetZdrojuByUdalost = new Map<string, number>();
@@ -100,79 +136,157 @@ async function nacistUdalosti(): Promise<UdalostRow[]> {
     }
   }
 
-  const vsechnaInterpretId = [...new Set([...interpretIdByUdalost.values()].flatMap((s) => [...s]))];
-  const interpreti = vsechnaInterpretId.length
-    ? await prisma.interpret.findMany({ where: { id: { in: vsechnaInterpretId } }, select: { id: true, nazev: true } })
-    : [];
   const nazevInterpretaById = new Map(interpreti.map((i) => [i.id, i.nazev]));
+
+  const entity = [
+    ...interpreti.map((i) => ({ nazev: i.nazev, norm: odstranDiakritiku(i.nazev.toLowerCase()) })),
+    ...hudebnici.map((h) => ({ nazev: h.jmeno, norm: odstranDiakritiku(h.jmeno.toLowerCase()) })),
+  ]
+    .filter((e) => e.norm.length >= 4)
+    .sort((a, b) => b.norm.length - a.norm.length);
+
+  function najdiEntituVTextu(nazev: string): string | null {
+    const norm = odstranDiakritiku(nazev.toLowerCase());
+    for (const e of entity) {
+      if (norm.includes(e.norm)) return e.nazev;
+    }
+    return null;
+  }
 
   return udalosti.map((u) => ({
     id: u.id,
     nazev: u.nazev,
     datum: u.datum,
-    denMesic: denMesicZData(u.datum),
+    denCislo: denCisloZData(u.datum),
     typ: u.typ,
     stav: u.stav,
     pocetZdroju: pocetZdrojuByUdalost.get(u.id) ?? 0,
     pocetVazeb: pocetVazebByUdalost.get(u.id) ?? 0,
     interpretNazvy: [...(interpretIdByUdalost.get(u.id) ?? [])].map((id) => nazevInterpretaById.get(id) ?? id),
+    entitaSubstring: najdiEntituVTextu(u.nazev),
     createdAt: u.createdAt,
   }));
 }
 
-interface PodezrelyPar {
-  a: UdalostRow;
-  b: UdalostRow;
-  skore: number;
-  duvod: string;
+const PRAH_STEJNA_ENTITA = 0.35;
+const PRAH_JEN_TEXT = 0.45;
+const PRAH_SOUSEDNI_DEN_ENTITA = 0.5;
+const PRAH_SOUSEDNI_DEN_TEXT = 0.65;
+
+function jeDuplicita(a: UdalostRow, b: UdalostRow): { je: boolean; skore: number; duvod: string; ruzneDatumy: boolean } {
+  const rozdil = rozdilDni(a.denCislo, b.denCislo);
+  if (rozdil > 1) return { je: false, skore: 0, duvod: "", ruzneDatumy: false };
+
+  const entitaA = a.entitaSubstring ?? a.interpretNazvy[0] ?? null;
+  const entitaB = b.entitaSubstring ?? b.interpretNazvy[0] ?? null;
+  const stejnaEntita = entitaA !== null && entitaA === entitaB;
+
+  const skore = podobnostNazvu(a.nazev, b.nazev);
+
+  if (rozdil === 0) {
+    if (stejnaEntita && skore >= PRAH_STEJNA_ENTITA) {
+      return { je: true, skore, duvod: `stejná entita (${entitaA}) + stejný den, podobnost textu ${Math.round(skore * 100)} %`, ruzneDatumy: false };
+    }
+    if (skore >= PRAH_JEN_TEXT) {
+      return { je: true, skore, duvod: `podobný text (${Math.round(skore * 100)} %) + stejný den`, ruzneDatumy: false };
+    }
+  } else {
+    if (stejnaEntita && skore >= PRAH_SOUSEDNI_DEN_ENTITA) {
+      return { je: true, skore, duvod: `POZOR RŮZNÉ DNY (${a.datum} vs ${b.datum}) — stejná entita (${entitaA}), podobnost textu ${Math.round(skore * 100)} %`, ruzneDatumy: true };
+    }
+    if (skore >= PRAH_SOUSEDNI_DEN_TEXT) {
+      return { je: true, skore, duvod: `POZOR RŮZNÉ DNY (${a.datum} vs ${b.datum}) — podobný text (${Math.round(skore * 100)} %)`, ruzneDatumy: true };
+    }
+  }
+  return { je: false, skore, duvod: "", ruzneDatumy: false };
 }
 
-function najdiPodezreleParTexty(udalosti: UdalostRow[]): PodezrelyPar[] {
-  const vysledky: PodezrelyPar[] = [];
+class UnionFind {
+  rodic: number[];
+  constructor(n: number) {
+    this.rodic = Array.from({ length: n }, (_, i) => i);
+  }
+  najdi(x: number): number {
+    if (this.rodic[x] !== x) this.rodic[x] = this.najdi(this.rodic[x]);
+    return this.rodic[x];
+  }
+  spoj(x: number, y: number) {
+    const rx = this.najdi(x);
+    const ry = this.najdi(y);
+    if (rx !== ry) this.rodic[rx] = ry;
+  }
+}
+
+interface Shluk {
+  udalosti: UdalostRow[];
+  nejlepsiSkore: number;
+  duvody: string[];
+  maRuzneDatumy: boolean;
+}
+
+function najdiShluky(udalosti: UdalostRow[]): Shluk[] {
+  const uf = new UnionFind(udalosti.length);
+  const duvodyPairs: Record<string, string[]> = {};
+  const skorePairs: Record<string, number> = {};
+  const ruzneDatumyPairs: Record<string, boolean> = {};
+
   for (let i = 0; i < udalosti.length; i++) {
     for (let j = i + 1; j < udalosti.length; j++) {
-      const a = udalosti[i];
-      const b = udalosti[j];
-      if (a.denMesic !== b.denMesic) continue;
-
-      const stejnyInterpret =
-        a.interpretNazvy.length > 0 && b.interpretNazvy.length > 0 &&
-        a.interpretNazvy.some((n) => b.interpretNazvy.includes(n));
-
-      const skoreText = podobnost(normalizuj(a.nazev), normalizuj(b.nazev));
-
-      if (stejnyInterpret && (a.typ === b.typ || skoreText >= 0.5)) {
-        vysledky.push({ a, b, skore: skoreText, duvod: "stejný interpret + stejný den" + (a.typ === b.typ ? " + stejný typ" : "") });
-      } else if (skoreText >= 0.7) {
-        vysledky.push({ a, b, skore: skoreText, duvod: `podobný název (${Math.round(skoreText * 100)} %) + stejný den` });
+      const vysledek = jeDuplicita(udalosti[i], udalosti[j]);
+      if (vysledek.je) {
+        uf.spoj(i, j);
+        const koren = uf.najdi(i);
+        if (!duvodyPairs[koren]) duvodyPairs[koren] = [];
+        duvodyPairs[koren].push(vysledek.duvod);
+        skorePairs[koren] = Math.max(skorePairs[koren] ?? 0, vysledek.skore);
+        if (vysledek.ruzneDatumy) ruzneDatumyPairs[koren] = true;
       }
     }
   }
-  return vysledky.sort((x, y) => y.skore - x.skore);
+
+  const skupiny = new Map<number, number[]>();
+  for (let i = 0; i < udalosti.length; i++) {
+    const koren = uf.najdi(i);
+    if (!skupiny.has(koren)) skupiny.set(koren, []);
+    skupiny.get(koren)!.push(i);
+  }
+
+  const shluky: Shluk[] = [];
+  for (const [koren, indexy] of skupiny) {
+    if (indexy.length < 2) continue;
+    shluky.push({
+      udalosti: indexy.map((i) => udalosti[i]),
+      nejlepsiSkore: skorePairs[koren] ?? 0,
+      duvody: [...new Set(duvodyPairs[koren] ?? [])],
+      maRuzneDatumy: ruzneDatumyPairs[koren] === true,
+    });
+  }
+
+  return shluky.sort((a, b) => {
+    if (a.maRuzneDatumy !== b.maRuzneDatumy) return a.maRuzneDatumy ? -1 : 1;
+    return b.nejlepsiSkore - a.nejlepsiSkore;
+  });
 }
 
 const VAHA_STAVU: Record<string, number> = { schvaleno: 3, overeno: 2, navrh: 1 };
 
-function doporucKanonicky(a: UdalostRow, b: UdalostRow): UdalostRow {
-  const vahaA = VAHA_STAVU[a.stav] ?? 0;
-  const vahaB = VAHA_STAVU[b.stav] ?? 0;
-  if (vahaA !== vahaB) return vahaA > vahaB ? a : b;
-  if (a.pocetZdroju !== b.pocetZdroju) return a.pocetZdroju > b.pocetZdroju ? a : b;
-  if (a.pocetVazeb !== b.pocetVazeb) return a.pocetVazeb > b.pocetVazeb ? a : b;
-  if (a.nazev.length !== b.nazev.length) return a.nazev.length > b.nazev.length ? a : b;
-  return a.createdAt < b.createdAt ? a : b;
+function serazeniKvalityDesc(udalosti: UdalostRow[]): UdalostRow[] {
+  return [...udalosti].sort((a, b) => {
+    const vahaA = VAHA_STAVU[a.stav] ?? 0;
+    const vahaB = VAHA_STAVU[b.stav] ?? 0;
+    if (vahaA !== vahaB) return vahaB - vahaA;
+    if (a.pocetZdroju !== b.pocetZdroju) return b.pocetZdroju - a.pocetZdroju;
+    if (a.pocetVazeb !== b.pocetVazeb) return b.pocetVazeb - a.pocetVazeb;
+    if (a.nazev.length !== b.nazev.length) return b.nazev.length - a.nazev.length;
+    return a.createdAt < b.createdAt ? -1 : 1;
+  });
 }
 
-// ---------- sloučení jednoho páru ----------
-
 async function slouc(kanonicky: UdalostRow, druhy: UdalostRow) {
-  // 1) přesunout Zdroje z druhého na kanonický
   const presunZdroju = await prisma.zdroj.updateMany({
     where: { cilovyTyp: TYP_UDALOST, cilovyId: druhy.id },
     data: { cilovyId: kanonicky.id },
   });
-
-  // 2) přesunout Vazby z druhého na kanonický (na obou stranách vazby)
   const presunVazebZdroj = await prisma.vazba.updateMany({
     where: { zdrojovyTyp: TYP_UDALOST, zdrojovyId: druhy.id },
     data: { zdrojovyId: kanonicky.id },
@@ -181,8 +295,6 @@ async function slouc(kanonicky: UdalostRow, druhy: UdalostRow) {
     where: { cilovyTyp: TYP_UDALOST, cilovyId: druhy.id },
     data: { cilovyId: kanonicky.id },
   });
-
-  // 3) smazat duplicitní Událost
   await prisma.udalost.delete({ where: { id: druhy.id } });
 
   return {
@@ -191,46 +303,57 @@ async function slouc(kanonicky: UdalostRow, druhy: UdalostRow) {
   };
 }
 
-// ---------- hlavní běh ----------
-
 async function main() {
-  console.log(PROVEST ? "REŽIM: PROVÉST (skutečně mění databázi)\n" : "REŽIM: DRY-RUN (nic se nezmění, jen náhled)\n");
+  console.log(PROVEST ? "REŽIM: PROVÉST (mění databázi — jen shluky se STEJNÝM datem)\n" : "REŽIM: DRY-RUN (nic se nezmění, jen náhled)\n");
 
   const udalosti = await nacistUdalosti();
-  const podezrele = najdiPodezreleParTexty(udalosti);
+  const shluky = najdiShluky(udalosti);
 
-  if (podezrele.length === 0) {
+  if (shluky.length === 0) {
     console.log("Žádné podezřelé duplicity nenalezeny.");
     return;
   }
 
-  console.log(`Nalezeno ${podezrele.length} párů.\n`);
+  console.log(`Nalezeno ${shluky.length} shluků.\n`);
   console.log("=".repeat(80));
 
-  let sloucenoCelkem = 0;
+  let sloucenoZaznamu = 0;
+  let preskocenoKvuliDatumu = 0;
 
-  for (const par of podezrele) {
-    const kanonicky = doporucKanonicky(par.a, par.b);
-    const druhy = kanonicky.id === par.a.id ? par.b : par.a;
+  for (const shluk of shluky) {
+    const serazene = serazeniKvalityDesc(shluk.udalosti);
+    const kanonicky = serazene[0];
+    const duplicity = serazene.slice(1);
 
-    console.log(`\nDůvod: ${par.duvod}`);
+    console.log(`\n${shluk.maRuzneDatumy ? "⚠️  " : ""}Důvod: ${shluk.duvody.join("; ")}`);
     console.log(`  PONECHAT [${kanonicky.id}] "${kanonicky.nazev}" (${kanonicky.datum}, stav: ${kanonicky.stav})`);
-    console.log(`  SMAZAT   [${druhy.id}] "${druhy.nazev}" (${druhy.datum}, stav: ${druhy.stav}, zdroje: ${druhy.pocetZdroju}, vazby: ${druhy.pocetVazeb})`);
 
-    if (PROVEST) {
-      const vysledek = await slouc(kanonicky, druhy);
-      console.log(`  → sloučeno (přesunuto ${vysledek.presunutoZdroju} zdrojů, ${vysledek.presunutoVazeb} vazeb, duplicita smazána)`);
-      sloucenoCelkem++;
-    } else {
-      console.log(`  → (dry-run, nic neprovedeno)`);
+    if (shluk.maRuzneDatumy) {
+      for (const d of duplicity) {
+        console.log(`  NALEZENO [${d.id}] "${d.nazev}" (${d.datum}, stav: ${d.stav}, zdroje: ${d.pocetZdroju}, vazby: ${d.pocetVazeb})`);
+      }
+      console.log(`  → PŘESKOČENO — data se liší, rozhodni ručně, které datum je správné, pak spusť znovu`);
+      preskocenoKvuliDatumu += duplicity.length;
+      continue;
     }
+
+    for (const d of duplicity) {
+      console.log(`  SMAZAT   [${d.id}] "${d.nazev}" (${d.datum}, stav: ${d.stav}, zdroje: ${d.pocetZdroju}, vazby: ${d.pocetVazeb})`);
+      if (PROVEST) {
+        const vysledek = await slouc(kanonicky, d);
+        console.log(`    → sloučeno (přesunuto ${vysledek.presunutoZdroju} zdrojů, ${vysledek.presunutoVazeb} vazeb)`);
+        sloucenoZaznamu++;
+      }
+    }
+    if (!PROVEST) console.log(`  → (dry-run, nic neprovedeno)`);
   }
 
   console.log("\n" + "=".repeat(80));
   if (PROVEST) {
-    console.log(`\nHotovo. Sloučeno ${sloucenoCelkem} párů.`);
+    console.log(`\nHotovo. Smazáno ${sloucenoZaznamu} duplicitních záznamů.`);
+    if (preskocenoKvuliDatumu > 0) console.log(`Přeskočeno ${preskocenoKvuliDatumu} záznamů kvůli rozdílnému datu — potřebují ruční rozhodnutí.`);
   } else {
-    console.log(`\nToto byl náhled. Pro skutečné sloučení spusť:`);
+    console.log(`\nToto byl náhled. Pro skutečné sloučení (jen shluky se stejným dnem) spusť:`);
     console.log(`  npx tsx prisma/merge-duplicity-udalosti.ts --provest`);
   }
 }
