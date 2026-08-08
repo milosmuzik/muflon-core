@@ -1,15 +1,16 @@
 /**
- * Audit skript v4: hledá podezřelé duplicity v tabulce Události.
+ * Audit skript v5: hledá podezřelé duplicity v tabulce Události.
  *
  * READ-ONLY — nic nemaže ani neupravuje.
  *   npx tsx prisma/audit-duplicity-udalosti.ts
  *
- * Změny oproti v3:
- * - Tolerance ±1 den u data. Některé duplicity mají v datech posunuté datum
- *   o den (např. "úmrtí" vs. "nalezen mrtvý" následující den u Jani Lanea).
- *   U sousedních dnů se vyžaduje PŘÍSNĚJŠÍ shoda (stejná entita I vyšší
- *   textová podobnost), a důvod je označen "POZOR RŮZNÉ DNY" — než sloučíš,
- *   ručně rozhodni, které datum je správné, protože skript to nerozhoduje.
+ * Změny oproti v4:
+ * - Detekce entity už nehledá jen přesný podřetězec (to selhalo u "Jerry
+ *   Garcia" v textu "Jerryho Garcii" — skloněný tvar podřetězec vůbec
+ *   neobsahuje). Nově se nejdřív zkusí přesný podřetězec (rychlé, přesné),
+ *   a pokud nic nenajde, zkusí se FUZZY shoda: každé slovo jména entity
+ *   (min. 3 znaky) musí mít v textu události nějaké slovo s trigramovou
+ *   podobností ≥ 55 %. Tím se pokryjí běžné pádové koncovky.
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -23,7 +24,7 @@ interface UdalostRow {
   id: string;
   nazev: string;
   datum: string;
-  denCislo: number; // 1-365, pro počítání rozdílu dnů (nepřestupný rok)
+  denCislo: number;
   typ: string;
   stav: string;
   pocetZdroju: number;
@@ -53,6 +54,15 @@ function normalizuj(text: string): string[] {
     .filter((slovo) => slovo && !STOPWORDA.includes(slovo));
 }
 
+// stejná normalizace, ale BEZ odstranění stopwords — pro fuzzy hledání
+// entity chceme prohledat úplně všechna slova v názvu
+function normalizujVsechnaSlova(text: string): string[] {
+  return odstranDiakritiku(text.toLowerCase())
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((slovo) => slovo.length > 0);
+}
+
 function trigramyTokenu(tok: string): string[] {
   if (tok.length <= 3) return [tok];
   const grams: string[] = [];
@@ -75,11 +85,25 @@ function jaccard(a: Set<string>, b: Set<string>): number {
   return prunik / sjednoceni;
 }
 
+function podobnostSlov(a: string, b: string): number {
+  return jaccard(trigramySady([a]), trigramySady([b]));
+}
+
 function podobnostNazvu(a: string, b: string): number {
   return jaccard(trigramySady(normalizuj(a)), trigramySady(normalizuj(b)));
 }
 
-// "YYYY-MM-DD" nebo "MM-DD" -> pořadové číslo dne v (nepřestupném) roce 1-365
+function vyznamovaSlova(text: string): string[] {
+  return normalizuj(text).filter((slovo) => slovo.length >= 5);
+}
+
+function sdilenaVyznamovaSlova(a: string, b: string): { pocet: number; slova: string[] } {
+  const wa = new Set(vyznamovaSlova(a));
+  const wb = new Set(vyznamovaSlova(b));
+  const spolecna = [...wa].filter((w) => wb.has(w));
+  return { pocet: spolecna.length, slova: spolecna };
+}
+
 function denCisloZData(datum: string): number {
   const casti = datum.split("-");
   let mesic: number, den: number;
@@ -90,7 +114,7 @@ function denCisloZData(datum: string): number {
     mesic = parseInt(casti[0], 10);
     den = parseInt(casti[1], 10);
   } else {
-    return -1; // neznámý formát, nikdy se nespojí přes den
+    return -1;
   }
   if (!mesic || !den || mesic < 1 || mesic > 12) return -1;
   let soucet = 0;
@@ -98,12 +122,13 @@ function denCisloZData(datum: string): number {
   return soucet + den;
 }
 
-// cyklický rozdíl dnů (ošetří přelom roku 31.12. <-> 1.1.)
 function rozdilDni(a: number, b: number): number {
   if (a < 0 || b < 0) return 999;
   const rozdil = Math.abs(a - b);
   return Math.min(rozdil, 365 - rozdil);
 }
+
+const PRAH_SLOVO_FUZZY = 0.55;
 
 async function nacistUdalosti(): Promise<UdalostRow[]> {
   const [udalosti, zdroje, vazby, interpreti, hudebnici] = await Promise.all([
@@ -141,16 +166,34 @@ async function nacistUdalosti(): Promise<UdalostRow[]> {
   const entity = [
     ...interpreti.map((i) => ({ nazev: i.nazev, norm: odstranDiakritiku(i.nazev.toLowerCase()) })),
     ...hudebnici.map((h) => ({ nazev: h.jmeno, norm: odstranDiakritiku(h.jmeno.toLowerCase()) })),
-  ]
-    .filter((e) => e.norm.length >= 4)
-    .sort((a, b) => b.norm.length - a.norm.length);
+  ].filter((e) => e.norm.length >= 4);
+
+  const entitaSubstringSeznam = [...entity].sort((a, b) => b.norm.length - a.norm.length);
+
+  function najdiEntituPresne(normText: string): string | null {
+    for (const e of entitaSubstringSeznam) {
+      if (normText.includes(e.norm)) return e.nazev;
+    }
+    return null;
+  }
+
+  function najdiEntituFuzzy(textTokeny: string[]): string | null {
+    for (const e of entity) {
+      const entWords = e.norm.split(/\s+/).filter((w) => w.length >= 3);
+      if (entWords.length === 0) continue;
+      const vsechnaSedi = entWords.every((ew) =>
+        textTokeny.some((tw) => podobnostSlov(ew, tw) >= PRAH_SLOVO_FUZZY)
+      );
+      if (vsechnaSedi) return e.nazev;
+    }
+    return null;
+  }
 
   function najdiEntituVTextu(nazev: string): string | null {
     const norm = odstranDiakritiku(nazev.toLowerCase());
-    for (const e of entity) {
-      if (norm.includes(e.norm)) return e.nazev;
-    }
-    return null;
+    const presne = najdiEntituPresne(norm);
+    if (presne) return presne;
+    return najdiEntituFuzzy(normalizujVsechnaSlova(nazev));
   }
 
   return udalosti.map((u) => ({
@@ -168,9 +211,9 @@ async function nacistUdalosti(): Promise<UdalostRow[]> {
   }));
 }
 
-const PRAH_STEJNA_ENTITA = 0.35;
+const PRAH_STEJNA_ENTITA = 0.3; // sníženo — entita už je silnější signál díky fuzzy detekci
 const PRAH_JEN_TEXT = 0.45;
-const PRAH_SOUSEDNI_DEN_ENTITA = 0.5; // přísnější, když se den liší o 1
+const PRAH_SOUSEDNI_DEN_ENTITA = 0.45;
 const PRAH_SOUSEDNI_DEN_TEXT = 0.65;
 
 function jeDuplicita(a: UdalostRow, b: UdalostRow): { je: boolean; skore: number; duvod: string } {
@@ -190,13 +233,16 @@ function jeDuplicita(a: UdalostRow, b: UdalostRow): { je: boolean; skore: number
     if (skore >= PRAH_JEN_TEXT) {
       return { je: true, skore, duvod: `podobný text (${Math.round(skore * 100)} %) + stejný den` };
     }
+    const sdilena = sdilenaVyznamovaSlova(a.nazev, b.nazev);
+    if (sdilena.pocet >= 2) {
+      return { je: true, skore, duvod: `sdílená klíčová slova (${sdilena.slova.join(", ")}) + stejný den, podobnost textu ${Math.round(skore * 100)} %` };
+    }
   } else {
-    // rozdíl 1 den — přísnější práh, jasně označit jako sporné datum
     if (stejnaEntita && skore >= PRAH_SOUSEDNI_DEN_ENTITA) {
-      return { je: true, skore, duvod: `POZOR RŮZNÉ DNY (${a.datum} vs ${b.datum}) — stejná entita (${entitaA}), podobnost textu ${Math.round(skore * 100)} %, ruč­ně ověř správné datum před sloučením` };
+      return { je: true, skore, duvod: `POZOR RŮZNÉ DNY (${a.datum} vs ${b.datum}) — stejná entita (${entitaA}), podobnost textu ${Math.round(skore * 100)} %` };
     }
     if (skore >= PRAH_SOUSEDNI_DEN_TEXT) {
-      return { je: true, skore, duvod: `POZOR RŮZNÉ DNY (${a.datum} vs ${b.datum}) — podobný text (${Math.round(skore * 100)} %), ruč­ně ověř správné datum před sloučením` };
+      return { je: true, skore, duvod: `POZOR RŮZNÉ DNY (${a.datum} vs ${b.datum}) — podobný text (${Math.round(skore * 100)} %)` };
     }
   }
   return { je: false, skore, duvod: "" };
@@ -262,7 +308,6 @@ function najdiShluky(udalosti: UdalostRow[]): Shluk[] {
     });
   }
 
-  // shluky s POZOR nahoru, ať je vidět, co potřebuje ruční kontrolu dat
   return shluky.sort((a, b) => {
     if (a.maRuzneDatumy !== b.maRuzneDatumy) return a.maRuzneDatumy ? -1 : 1;
     return b.nejlepsiSkore - a.nejlepsiSkore;
@@ -297,7 +342,7 @@ async function main() {
 
   const pocetSPozor = shluky.filter((s) => s.maRuzneDatumy).length;
   const celkemZaznamuKOdstraneni = shluky.reduce((s, sh) => s + sh.udalosti.length - 1, 0);
-  console.log(`Nalezeno ${shluky.length} shluků (${pocetSPozor} s rozdílným datem — zkontroluj ručně, celkem ${celkemZaznamuKOdstraneni} záznamů ke smazání):\n`);
+  console.log(`Nalezeno ${shluky.length} shluků (${pocetSPozor} s rozdílným datem, celkem ${celkemZaznamuKOdstraneni} záznamů ke smazání):\n`);
   console.log("=".repeat(80));
 
   for (const shluk of shluky) {
@@ -313,7 +358,7 @@ async function main() {
   }
 
   console.log("\n" + "=".repeat(80));
-  console.log(`\nCelkem ${shluky.length} shluků k ruční kontrole (${pocetSPozor} s ⚠️ rozdílným datem). Nic nebylo smazáno.`);
+  console.log(`\nCelkem ${shluky.length} shluků k ruční kontrole (${pocetSPozor} s ⚠️). Nic nebylo smazáno.`);
   console.log("Pro sloučení spusť: npx tsx prisma/merge-duplicity-udalosti.ts");
 }
 
