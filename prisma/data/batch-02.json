@@ -36,7 +36,7 @@
         { "nadpis": "Spojení dvou zpěváků z různých žánrů", "obsah": "All For Metal vzniklo spojením Tima \"Tetzela\" Schmidta, zpěváka německé kapely Asenblut, a Antonia Calanny, zpěváka hardrockové kapely DeVicious. Oba spojila společná láska ke klasickému heavy metalu a touha přinést ho nové generaci posluchačů." }
       ],
       "zdroje": [
-        { "nazev": "All for Metal – Encyclopaedia Metallum", "url": "https://www.metal-archives.com/bands/All_for_Metal/3540509742", "kategorie": "metal_archives", "uroverDuvery": "vysoka" },
+        { "nazev": "All for Metal – Encyclopaedia Metallum", "url": "https://www.metal-archives.com/bands/All_for_Metal/3540509742", "kategorie": "databaze", "uroverDuvery": "vysoka" },
         { "nazev": "All for Metal – Last.fm", "url": "https://www.last.fm/music/All+for+Metal/+wiki", "kategorie": "media", "uroverDuvery": "stredni" }
       ]
     },

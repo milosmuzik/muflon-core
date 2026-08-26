@@ -65,14 +65,14 @@
       ],
       "zdroje": [
         { "nazev": "Oficiální web", "url": "https://allthatremainsonline.com/", "kategorie": "oficialni_web", "uroverDuvery": "vysoka" },
-        { "nazev": "Oficiální Facebook", "url": "https://www.facebook.com/allthatremains", "kategorie": "oficialni_facebook", "uroverDuvery": "vysoka" },
-        { "nazev": "Oficiální Instagram", "url": "https://www.instagram.com/allthatremainsofficial/", "kategorie": "oficialni_instagram", "uroverDuvery": "vysoka" },
-        { "nazev": "Oficiální YouTube", "url": "https://music.youtube.com/@allthatremainsmusic", "kategorie": "oficialni_youtube", "uroverDuvery": "vysoka" },
-        { "nazev": "Discogs", "url": "https://www.discogs.com/artist/269118-All-That-Remains", "kategorie": "discogs", "uroverDuvery": "vysoka" },
-        { "nazev": "MusicBrainz", "url": "https://musicbrainz.org/artist/4f8b7186-b2a2-40db-97ae-6e1cd46d57b1", "kategorie": "musicbrainz", "uroverDuvery": "vysoka" },
-        { "nazev": "Metal Archives", "url": "https://www.metal-archives.com/bands/All_That_Remains/1283", "kategorie": "metal_archives", "uroverDuvery": "vysoka" },
-        { "nazev": "AllMusic", "url": "https://www.allmusic.com/artist/all-that-remains-mn0000001498", "kategorie": "allmusic", "uroverDuvery": "vysoka" },
-        { "nazev": "Wikipedia (doplňkově)", "url": "https://en.wikipedia.org/wiki/All_That_Remains_(band)", "kategorie": "wikipedia", "uroverDuvery": "stredni" },
+        { "nazev": "Oficiální Facebook", "url": "https://www.facebook.com/allthatremains", "kategorie": "socialni_site", "uroverDuvery": "vysoka" },
+        { "nazev": "Oficiální Instagram", "url": "https://www.instagram.com/allthatremainsofficial/", "kategorie": "socialni_site", "uroverDuvery": "vysoka" },
+        { "nazev": "Oficiální YouTube", "url": "https://music.youtube.com/@allthatremainsmusic", "kategorie": "socialni_site", "uroverDuvery": "vysoka" },
+        { "nazev": "Discogs", "url": "https://www.discogs.com/artist/269118-All-That-Remains", "kategorie": "databaze", "uroverDuvery": "vysoka" },
+        { "nazev": "MusicBrainz", "url": "https://musicbrainz.org/artist/4f8b7186-b2a2-40db-97ae-6e1cd46d57b1", "kategorie": "databaze", "uroverDuvery": "vysoka" },
+        { "nazev": "Metal Archives", "url": "https://www.metal-archives.com/bands/All_That_Remains/1283", "kategorie": "databaze", "uroverDuvery": "vysoka" },
+        { "nazev": "AllMusic", "url": "https://www.allmusic.com/artist/all-that-remains-mn0000001498", "kategorie": "databaze", "uroverDuvery": "vysoka" },
+        { "nazev": "Wikipedia (doplňkově)", "url": "https://en.wikipedia.org/wiki/All_That_Remains_(band)", "kategorie": "orientacni", "uroverDuvery": "stredni" },
         { "nazev": "Revolver (doplňkově, k příběhu)", "url": "https://www.revolvermag.com/music/how-tragedy-and-turmoil-made-all-that-remains-antifragile/", "kategorie": "media", "uroverDuvery": "stredni" }
       ]
     }

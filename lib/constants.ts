@@ -53,6 +53,14 @@ export const TYPY_ENTIT: Record<string, string> = {
 
 // Hierarchie zdrojů pro tvorbu příběhů (Muflon Core Bible).
 // Pořadí = priorita/důvěryhodnost, nejnižší číslo = nejvyšší priorita.
+//
+// DŮLEŽITÉ pro tvorbu referenčních karet: Zdroj.kategorie smí být JEN jeden
+// z klíčů níže (klic) — nikdy konkrétní služba (např. "metal_archives",
+// "wikipedia", "discogs"). Konkrétní zdroj patří do pole Zdroj.nazev
+// (např. "Allen/Lande – Encyclopaedia Metallum"), kategorie nese jen
+// důvěryhodnostní úroveň dle téhle hierarchie. Metal Archives/AllMusic/
+// MusicBrainz/Discogs/Wikidata → "databaze". Wikipedia a fanouškovské weby
+// → "orientacni". Instagram/Facebook/YouTube profily kapely → "socialni_site".
 export const KATEGORIE_ZDROJE: { klic: string; priorita: number; label: string }[] = [
   { klic: "oficialni_web", priorita: 1, label: "Oficiální web interpreta" },
   { klic: "socialni_site", priorita: 2, label: "Oficiální sociální sítě" },

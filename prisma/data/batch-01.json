@@ -39,8 +39,8 @@
         { "nadpis": "Konec bez ohlášeného konce", "obsah": "V roce 2019 Jørn Lande oznámil, že se plánuje čtvrté album stalo posledním – k rozchodu ale nedošlo formálně, Lande jen uvedl, že u něj chybí nadšení pro další pokračování." }
       ],
       "zdroje": [
-        { "nazev": "Allen/Lande – Encyclopaedia Metallum", "url": "https://www.metal-archives.com/bands/Allen_-_Lande/47043", "kategorie": "metal_archives", "uroverDuvery": "vysoka" },
-        { "nazev": "Allen (collaborative projects) – Wikipedia", "url": "https://en.wikipedia.org/wiki/Allen_(collaborative_projects)", "kategorie": "wikipedia", "uroverDuvery": "stredni" }
+        { "nazev": "Allen/Lande – Encyclopaedia Metallum", "url": "https://www.metal-archives.com/bands/Allen_-_Lande/47043", "kategorie": "databaze", "uroverDuvery": "vysoka" },
+        { "nazev": "Allen (collaborative projects) – Wikipedia", "url": "https://en.wikipedia.org/wiki/Allen_(collaborative_projects)", "kategorie": "orientacni", "uroverDuvery": "stredni" }
       ]
     },
     {
@@ -94,8 +94,8 @@
         { "nadpis": "Tři hlasy jako ochranná známka", "obsah": "Amaranthe je typická kombinací tří vokálních stylů najednou – čistého zpěvu, drsného growlu a ženského zpěvu – což se stalo jejich hudebním podpisem a inspirovalo řadu dalších kapel k podobnému přístupu." }
       ],
       "zdroje": [
-        { "nazev": "Amaranthe – Wikipedia", "url": "https://en.wikipedia.org/wiki/Amaranthe", "kategorie": "wikipedia", "uroverDuvery": "stredni" },
-        { "nazev": "Amaranthe discography – Wikipedia", "url": "https://en.wikipedia.org/wiki/Amaranthe_discography", "kategorie": "wikipedia", "uroverDuvery": "stredni" }
+        { "nazev": "Amaranthe – Wikipedia", "url": "https://en.wikipedia.org/wiki/Amaranthe", "kategorie": "orientacni", "uroverDuvery": "stredni" },
+        { "nazev": "Amaranthe discography – Wikipedia", "url": "https://en.wikipedia.org/wiki/Amaranthe_discography", "kategorie": "orientacni", "uroverDuvery": "stredni" }
       ]
     },
     {
@@ -131,7 +131,7 @@
       "pribehy": [],
       "zdroje": [
         { "nazev": "Ambush – Metal Kingdom", "url": "https://www.metalkingdom.net/band/ambush-19951", "kategorie": "media", "uroverDuvery": "stredni" },
-        { "nazev": "Ambush – Wikidata", "url": "https://www.wikidata.org/wiki/Q21001235", "kategorie": "media", "uroverDuvery": "stredni" }
+        { "nazev": "Ambush – Wikidata", "url": "https://www.wikidata.org/wiki/Q21001235", "kategorie": "databaze", "uroverDuvery": "stredni" }
       ]
     }
   ]
