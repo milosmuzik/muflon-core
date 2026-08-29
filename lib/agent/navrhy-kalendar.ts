@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
+import { urovenDuveryPriorita, urovenDuveryZKategorie } from "@/lib/constants";
+
+// Od téhle úrovně důvěry (a výš) se událost schvaluje automaticky, bez
+// ručního ověření – viz DALSI_STAV workflow (navrh -> overeno -> schvaleno).
+const AUTOSCHVALENI_OD_UROVNE = urovenDuveryPriorita("stredni");
 
 const GEMINI_MODEL = "gemini-flash-lite-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -124,22 +129,37 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
           },
         });
 
+        let nejvyssiUroven = 0;
         for (const zdroj of polozka.zdroje.slice(0, 5)) {
           if (!zdroj.url) continue;
+          const kategorie = PLATNE_KATEGORIE.has(zdroj.kategorie) ? zdroj.kategorie : "orientacni";
+          const uroverDuvery = urovenDuveryZKategorie(kategorie);
+          nejvyssiUroven = Math.max(nejvyssiUroven, urovenDuveryPriorita(uroverDuvery));
           await prisma.zdroj.create({
             data: {
               cilovyTyp: "Udalost",
               cilovyId: novaUdalost.id,
               nazev: zdroj.nazev || "Zdroj",
               url: zdroj.url,
-              kategorie: PLATNE_KATEGORIE.has(zdroj.kategorie) ? zdroj.kategorie : "orientacni",
-              uroverDuvery: "stredni",
+              kategorie,
+              uroverDuvery,
               poznamka: "Navrženo AI agentem – doporučeno ověřit před zveřejněním.",
             },
           });
         }
 
         await zapisHistorii("Udalost", novaUdalost.id, "vytvoreno", "Navrženo AI agentem (Gemini + web search)");
+
+        if (nejvyssiUroven >= AUTOSCHVALENI_OD_UROVNE) {
+          await prisma.udalost.update({ where: { id: novaUdalost.id }, data: { stav: "schvaleno" } });
+          await zapisHistorii(
+            "Udalost",
+            novaUdalost.id,
+            "zmena_stavu",
+            "Automaticky schváleno – nejméně jeden zdroj se střední nebo vyšší důvěrou"
+          );
+        }
+
         navrzeno++;
       }
     } catch (e) {

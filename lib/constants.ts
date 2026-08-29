@@ -70,3 +70,23 @@ export const KATEGORIE_ZDROJE_LABEL: Record<string, string> = Object.fromEntries
 export const KATEGORIE_ZDROJE_PRIORITA: Record<string, number> = Object.fromEntries(
   KATEGORIE_ZDROJE.map((k) => [k.klic, k.priorita])
 );
+
+// Pořadí úrovní důvěry od nejnižší po nejvyšší – použij k porovnávání
+// (např. "je tenhle zdroj aspoň středně důvěryhodný?").
+export const UROVEN_DUVERY_PORADI = ["neoverene", "nizka", "stredni", "vysoka"] as const;
+
+export function urovenDuveryPriorita(uroven: string): number {
+  const idx = UROVEN_DUVERY_PORADI.indexOf(uroven as (typeof UROVEN_DUVERY_PORADI)[number]);
+  return idx === -1 ? 0 : idx;
+}
+
+// Odvodí úroveň důvěry zdroje z jeho kategorie (hierarchie zdrojů výše).
+// Oficiální web/sítě = vysoká, archivy/databáze = střední, média/rozhovory/knihy = nízká,
+// orientační zdroje (Wikipedia, fanouškovské weby) = neověřené.
+export function urovenDuveryZKategorie(kategorie: string): string {
+  const priorita = KATEGORIE_ZDROJE_PRIORITA[kategorie] ?? 8;
+  if (priorita <= 2) return "vysoka";
+  if (priorita <= 4) return "stredni";
+  if (priorita <= 7) return "nizka";
+  return "neoverene";
+}
