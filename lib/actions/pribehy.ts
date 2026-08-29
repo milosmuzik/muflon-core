@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { revidovatPribehy, type VysledekReviziPribehu } from "@/lib/agent/revize-pribehy";
 
 export async function vytvoritPribeh(formData: FormData) {
   const nadpis = String(formData.get("nadpis") || "").trim();
@@ -35,4 +36,13 @@ export async function upravitPribeh(id: string, formData: FormData) {
   await prisma.pribeh.update({ where: { id }, data: { nadpis, obsah } });
   await zapisHistorii("Pribeh", id, "upraveno");
   revalidatePath(`/pribehy/${id}`);
+}
+
+export async function spustitReviziPribehuRucne(
+  _predchoziStav: VysledekReviziPribehu,
+  _formData: FormData
+): Promise<VysledekReviziPribehu> {
+  const vysledek = await revidovatPribehy();
+  revalidatePath("/pribehy");
+  return vysledek;
 }

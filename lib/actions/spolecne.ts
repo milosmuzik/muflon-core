@@ -2,8 +2,33 @@
 
 import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
-import { DALSI_STAV } from "@/lib/constants";
+import { AUTOSCHVALENI_OD_UROVNE, DALSI_STAV, urovenDuveryPriorita } from "@/lib/constants";
 import { revalidatePath } from "next/cache";
+
+// Entity s redakčním workflow (navrh -> overeno -> schvaleno -> ...) – jediné,
+// u kterých dává smysl automaticky posunout stav podle důvěry zdroje.
+const STAVOVE_ENTITY = new Set(["Pribeh", "Udalost"]);
+
+// Pokud přidaný/upravený zdroj má střední nebo vyšší důvěru a záznam ještě
+// čeká na schválení (návrh/ověřeno), rovnou ho schvaluje – nemusí se čekat
+// na ruční "Posunout stav".
+async function zvazAutomatickeSchvaleni(cilovyTyp: string, cilovyId: string, uroverDuvery: string) {
+  if (!STAVOVE_ENTITY.has(cilovyTyp)) return;
+  if (urovenDuveryPriorita(uroverDuvery) < AUTOSCHVALENI_OD_UROVNE) return;
+
+  const aktualni =
+    cilovyTyp === "Pribeh"
+      ? await prisma.pribeh.findUnique({ where: { id: cilovyId }, select: { stav: true } })
+      : await prisma.udalost.findUnique({ where: { id: cilovyId }, select: { stav: true } });
+  if (!aktualni || (aktualni.stav !== "navrh" && aktualni.stav !== "overeno")) return;
+
+  if (cilovyTyp === "Pribeh") {
+    await prisma.pribeh.update({ where: { id: cilovyId }, data: { stav: "schvaleno" } });
+  } else {
+    await prisma.udalost.update({ where: { id: cilovyId }, data: { stav: "schvaleno" } });
+  }
+  await zapisHistorii(cilovyTyp, cilovyId, "zmena_stavu", "Automaticky schváleno – přidán zdroj se střední nebo vyšší důvěrou");
+}
 
 // ---------------------------------------------------------------------------
 // Zdroje (kap. 4.4 Ověřitelnost) – polymorfní, funguje pro libovolnou entitu.
@@ -34,6 +59,7 @@ export async function pridatZdroj(
     },
   });
   await zapisHistorii(cilovyTyp, cilovyId, "upraveno", `Přidán zdroj: ${nazev}`);
+  await zvazAutomatickeSchvaleni(cilovyTyp, cilovyId, uroverDuvery);
   revalidatePath(cestaZpet);
 }
 
