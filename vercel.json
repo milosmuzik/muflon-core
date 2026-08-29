@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/navrhy-kalendar",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/publikovat-vyroci",
+      "schedule": "30 17 * * *"
     }
   ]
 }

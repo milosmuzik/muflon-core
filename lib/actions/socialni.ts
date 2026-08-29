@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { publikujNaFacebook } from "@/lib/socialni/facebook";
 import { publikujNaInstagram } from "@/lib/socialni/instagram";
+import { publikujNaX } from "@/lib/socialni/x";
 import { zapisHistorii } from "@/lib/history";
 import { revalidatePath } from "next/cache";
 
@@ -49,5 +50,23 @@ export async function publikovatNaInstagram(udalostId: string) {
     },
   });
   await zapisHistorii("Udalost", udalostId, "upraveno", vysledek.uspech ? "Publikováno na Instagram" : `Chyba publikace na Instagram: ${vysledek.chyba}`);
+  revalidatePath(`/udalosti/${udalostId}`);
+}
+
+export async function publikovatNaX(udalostId: string) {
+  const udalost = await prisma.udalost.findUnique({ where: { id: udalostId } });
+  if (!udalost) return;
+
+  const vysledek = await publikujNaX(sestavText(udalost), verejnaUrlObrazku(udalost.id));
+
+  await prisma.publikace.create({
+    data: {
+      udalostId, platforma: "x",
+      stav: vysledek.uspech ? "publikovano" : "chyba",
+      externiId: vysledek.externiId, chybaText: vysledek.chyba,
+      publikovanoV: vysledek.uspech ? new Date() : null,
+    },
+  });
+  await zapisHistorii("Udalost", udalostId, "upraveno", vysledek.uspech ? "Publikováno na X" : `Chyba publikace na X: ${vysledek.chyba}`);
   revalidatePath(`/udalosti/${udalostId}`);
 }
