@@ -15,18 +15,38 @@ function formatujDatum(datum: string): string {
   return datum;
 }
 
+// Pár tematických palet místo jedné pevné barvy, ať se auto-generovaná
+// pozadí (bez fotky) mezi jednotlivými dny liší. Výběr je deterministický
+// podle ID události (ne náhodný), takže stejná událost má stále stejný
+// vzhled - žádné volání AI, žádná spotřeba tokenů, jen čistý výpočet.
+const PALETY = [
+  { hlavni: "#4a2f0d", vedlejsi: "#1a1206" }, // jantarová (výchozí)
+  { hlavni: "#3a0f0f", vedlejsi: "#150606" }, // rezavá/červená
+  { hlavni: "#0d2f28", vedlejsi: "#061412" }, // lesní zelená
+  { hlavni: "#241033", vedlejsi: "#0c0512" }, // fialová
+  { hlavni: "#0d1f3a", vedlejsi: "#050b16" }, // půlnoční modrá
+];
+
+function vyberPaletu(id: string) {
+  let soucet = 0;
+  for (let i = 0; i < id.length; i++) soucet += id.charCodeAt(i);
+  return PALETY[soucet % PALETY.length];
+}
+
+const TYP_ZNACKA: Record<string, string> = {
+  vyroci_alba: "VÝROČÍ ALBA",
+  narozeniny: "NAROZENINY",
+  umrti: "VZPOMÍNKA",
+  jina: "TOHLE SE STALO",
+};
+
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   const udalost = await prisma.udalost.findUnique({ where: { id: params.id } });
   if (!udalost) {
     return new Response("Nenalezeno", { status: 404 });
   }
 
-  const TYP_ZNACKA: Record<string, string> = {
-    vyroci_alba: "VÝROČÍ ALBA",
-    narozeniny: "NAROZENINY",
-    umrti: "VZPOMÍNKA",
-    jina: "TOHLE SE STALO",
-  };
+  const paleta = vyberPaletu(udalost.id);
 
   return new ImageResponse(
     (
@@ -38,7 +58,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
           position: "relative",
           backgroundImage: udalost.fotoUrl
             ? `url(${udalost.fotoUrl})`
-            : "radial-gradient(circle at 25% 15%, #4a2f0d 0%, #1a1206 40%, #0a0a0a 78%)",
+            : `radial-gradient(circle at 25% 15%, ${paleta.hlavni} 0%, ${paleta.vedlejsi} 40%, #0a0a0a 78%)`,
           backgroundSize: "cover",
           backgroundPosition: "center",
           fontFamily: "sans-serif",
