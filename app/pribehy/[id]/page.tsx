@@ -57,11 +57,17 @@ export default async function PribehDetail({ params }: { params: { id: string } 
           <IndexCard label="Redakční workflow">
             <p className="text-muted text-sm mb-3">Aktuální stav: <StatusBadge stav={pribeh.stav} /></p>
             {dalsiStav ? (
-              <form action={posunoutStav.bind(null, "pribeh", pribeh.id, pribeh.stav, cesta)}>
-                <button className="w-full bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring text-sm">
-                  Posunout na „{STAV_LABEL[dalsiStav]}“
-                </button>
-              </form>
+              bezZdroje ? (
+                <p className="text-rust text-xs">
+                  Nejdřív přidej aspoň jeden zdroj – bez něj stav nejde posunout dál.
+                </p>
+              ) : (
+                <form action={posunoutStav.bind(null, "pribeh", pribeh.id, pribeh.stav, cesta)}>
+                  <button className="w-full bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring text-sm">
+                    Posunout na „{STAV_LABEL[dalsiStav]}“
+                  </button>
+                </form>
+              )
             ) : (
               <p className="text-muted text-xs">Konečný stav dosažen.</p>
             )}
