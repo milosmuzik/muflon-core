@@ -21,6 +21,13 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     return new Response("Nenalezeno", { status: 404 });
   }
 
+  const TYP_ZNACKA: Record<string, string> = {
+    vyroci_alba: "VÝROČÍ ALBA",
+    narozeniny: "NAROZENINY",
+    umrti: "VZPOMÍNKA",
+    jina: "TOHLE SE STALO",
+  };
+
   return new ImageResponse(
     (
       <div
@@ -29,7 +36,11 @@ export async function GET(_request: Request, { params }: { params: { id: string 
           height: "100%",
           display: "flex",
           position: "relative",
-          backgroundColor: "#0a0a0a",
+          backgroundImage: udalost.fotoUrl
+            ? `url(${udalost.fotoUrl})`
+            : "radial-gradient(circle at 25% 15%, #4a2f0d 0%, #1a1206 40%, #0a0a0a 78%)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
           fontFamily: "sans-serif",
         }}
       >
@@ -38,7 +49,9 @@ export async function GET(_request: Request, { params }: { params: { id: string 
             position: "absolute",
             inset: 0,
             display: "flex",
-            background: "linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.92) 100%)",
+            background: udalost.fotoUrl
+              ? "linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.92) 100%)"
+              : "linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.1) 55%, rgba(0,0,0,0.25) 100%)",
           }}
         />
         <div
@@ -75,6 +88,10 @@ export async function GET(_request: Request, { params }: { params: { id: string 
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 900 }}>
+            <div style={{ display: "flex", width: 64, height: 6, background: "#D9A441", borderRadius: 3 }} />
+            <span style={{ fontSize: 22, fontWeight: 700, color: "#D9A441", letterSpacing: 3 }}>
+              {TYP_ZNACKA[udalost.typ] ?? TYP_ZNACKA.jina}
+            </span>
             <span style={{ fontSize: 64, fontWeight: 800, color: "#ffffff", lineHeight: 1.1 }}>
               {udalost.nazev}
             </span>
