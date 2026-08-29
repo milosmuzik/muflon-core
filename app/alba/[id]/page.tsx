@@ -6,7 +6,7 @@ import ZdrojeSekce from "@/components/ZdrojeSekce";
 import VazbySekce from "@/components/VazbySekce";
 import HistorieSekce from "@/components/HistorieSekce";
 import { upravitAlbum } from "@/lib/actions/alba";
-import { nazevObjektu } from "@/lib/actions/spolecne";
+import { najdiVazby } from "@/lib/actions/spolecne";
 
 export default async function AlbumDetail({ params }: { params: { id: string } }) {
   const album = await prisma.album.findUnique({
@@ -16,12 +16,11 @@ export default async function AlbumDetail({ params }: { params: { id: string } }
   if (!album) notFound();
 
   const cesta = `/alba/${album.id}`;
-  const [zdroje, vazbyRaw, historie] = await Promise.all([
+  const [zdroje, vazby, historie] = await Promise.all([
     prisma.zdroj.findMany({ where: { cilovyTyp: "Album", cilovyId: album.id }, orderBy: { createdAt: "desc" } }),
-    prisma.vazba.findMany({ where: { zdrojovyTyp: "Album", zdrojovyId: album.id }, orderBy: { createdAt: "desc" } }),
+    najdiVazby("Album", album.id),
     prisma.historieZmeny.findMany({ where: { entitaTyp: "Album", entitaId: album.id }, orderBy: { createdAt: "desc" }, take: 20 }),
   ]);
-  const vazby = await Promise.all(vazbyRaw.map(async (v) => ({ ...v, cilovyNazev: await nazevObjektu(v.cilovyTyp, v.cilovyId) })));
 
   return (
     <div className="space-y-6">

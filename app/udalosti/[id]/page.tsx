@@ -7,25 +7,22 @@ import ZdrojeSekce from "@/components/ZdrojeSekce";
 import VazbySekce from "@/components/VazbySekce";
 import HistorieSekce from "@/components/HistorieSekce";
 import { upravitUdalost, rozsiritUdalost } from "@/lib/actions/udalosti";
-import { nazevObjektu, posunoutStav } from "@/lib/actions/spolecne";
+import { najdiVazby } from "@/lib/actions/spolecne";
 import { prepnoutZverejneni } from "@/lib/actions/agent";
 import { nahratFotkuUdalosti } from "@/lib/actions/upload";
 import { publikovatNaFacebook, publikovatNaInstagram } from "@/lib/actions/socialni";
-import { DALSI_STAV, STAV_LABEL } from "@/lib/constants";
 
 export default async function UdalostDetail({ params }: { params: { id: string } }) {
   const udalost = await prisma.udalost.findUnique({ where: { id: params.id } });
   if (!udalost) notFound();
 
   const cesta = `/udalosti/${udalost.id}`;
-  const [zdroje, vazbyRaw, historie, publikace] = await Promise.all([
+  const [zdroje, vazby, historie, publikace] = await Promise.all([
     prisma.zdroj.findMany({ where: { cilovyTyp: "Udalost", cilovyId: udalost.id }, orderBy: { createdAt: "desc" } }),
-    prisma.vazba.findMany({ where: { zdrojovyTyp: "Udalost", zdrojovyId: udalost.id }, orderBy: { createdAt: "desc" } }),
+    najdiVazby("Udalost", udalost.id),
     prisma.historieZmeny.findMany({ where: { entitaTyp: "Udalost", entitaId: udalost.id }, orderBy: { createdAt: "desc" }, take: 20 }),
     prisma.publikace.findMany({ where: { udalostId: udalost.id }, orderBy: { createdAt: "desc" } }),
   ]);
-  const vazby = await Promise.all(vazbyRaw.map(async (v) => ({ ...v, cilovyNazev: await nazevObjektu(v.cilovyTyp, v.cilovyId) })));
-  const dalsiStav = DALSI_STAV[udalost.stav];
   const bezZdroje = zdroje.length === 0;
 
   return (
@@ -129,25 +126,6 @@ export default async function UdalostDetail({ params }: { params: { id: string }
                   </li>
                 ))}
               </ul>
-            )}
-          </IndexCard>
-
-          <IndexCard label="Redakční workflow">
-            <p className="text-muted text-sm mb-3">Aktuální stav: <StatusBadge stav={udalost.stav} /></p>
-            {dalsiStav ? (
-              bezZdroje ? (
-                <p className="text-rust text-xs">
-                  Nejdřív přidej aspoň jeden zdroj – bez něj stav nejde posunout dál.
-                </p>
-              ) : (
-                <form action={posunoutStav.bind(null, "udalost", udalost.id, udalost.stav, cesta)}>
-                  <button className="w-full bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring text-sm">
-                    Posunout na „{STAV_LABEL[dalsiStav]}“
-                  </button>
-                </form>
-              )
-            ) : (
-              <p className="text-muted text-xs">Konečný stav dosažen.</p>
             )}
           </IndexCard>
 

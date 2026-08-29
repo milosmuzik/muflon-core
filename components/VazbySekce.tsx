@@ -19,6 +19,7 @@ type VazbaZobrazena = {
   cilovyNazev: string;
   typVztahu: string;
   poznamka: string | null;
+  smer?: "odchozi" | "prichozi";
 };
 
 export default function VazbySekce({
@@ -50,6 +51,7 @@ export default function VazbySekce({
                   {v.cilovyNazev}
                 </Link>
                 <span className="text-muted font-mono text-xs ml-2">
+                  {v.smer === "prichozi" ? "← " : ""}
                   {TYPY_ENTIT[v.cilovyTyp] ?? v.cilovyTyp} · {v.typVztahu}
                 </span>
                 {v.poznamka && <div className="text-muted text-xs mt-0.5">{v.poznamka}</div>}
