@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { vytvoritPribeh } from "@/lib/actions/pribehy";
 import IndexCard from "@/components/IndexCard";
 import StatusBadge from "@/components/StatusBadge";
+import RevizePribehyTlacitko from "@/components/RevizePribehyTlacitko";
 import Link from "next/link";
 
 export default async function PribehyPage({ searchParams }: { searchParams: { stav?: string } }) {
@@ -32,6 +33,14 @@ export default async function PribehyPage({ searchParams }: { searchParams: { st
         <h1 className="font-display text-2xl text-paper">Příběhy</h1>
         <span className="tab-label">{pribehy.length} záznamů</span>
       </div>
+
+      <IndexCard label="Revize existujících příběhů podle důvěry zdrojů">
+        <p className="text-muted text-sm mb-3">
+          Projede všechny čekající příběhy (návrh/ověřeno) a rovnou schválí ty, které mají zdroj se střední nebo
+          vyšší důvěrou. Nové zdroje se stejnou důvěrou teď schvalují příběh i sám automaticky, hned jak je přidáš.
+        </p>
+        <RevizePribehyTlacitko />
+      </IndexCard>
 
       <div className="flex flex-wrap gap-2 text-xs font-mono">
         <Link href="/pribehy" className={`px-2 py-1 rounded-sm border ${!filtrStav ? "border-accent text-accent" : "border-line text-muted"}`}>vše</Link>
