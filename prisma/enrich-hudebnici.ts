@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { POZNAMKA_MB_CLENSTVI, urovenDuveryZeZdroje } from "../lib/constants";
 
 const prisma = new PrismaClient();
 
@@ -101,19 +102,25 @@ async function main() {
             nastroj: vztah.attributes?.join(", ") || null,
             obdobiOd: vztah.begin,
             obdobiDo: vztah.end,
-            poznamka: "Automaticky doplněno z MusicBrainz – doporučeno ověřit.",
+            poznamka: POZNAMKA_MB_CLENSTVI,
           },
         });
       }
 
+      // Stejná politika důvěry jako u AI agentů (lib/constants.ts) – MusicBrainz
+      // je obecná databáze mimo redakční whitelist, takže "střední", nikdy
+      // "vysoká" (na tu potřebuje oficiální kanál interpreta nebo renomované
+      // médium/databázi z whitelistu). Odvozeno funkcí, ne napevno zadané, aby
+      // to zůstalo v souladu, i kdyby se politika/whitelist později změnily.
+      const mbUrl = `https://musicbrainz.org/artist/${hit.id}`;
       await prisma.zdroj.create({
         data: {
           cilovyTyp: "Interpret",
           cilovyId: interpret.id,
           nazev: "MusicBrainz",
-          url: `https://musicbrainz.org/artist/${hit.id}`,
+          url: mbUrl,
           kategorie: "databaze",
-          uroverDuvery: "stredni",
+          uroverDuvery: urovenDuveryZeZdroje("databaze", mbUrl),
           poznamka: "Automatický import sestavy. Zkontroluj a případně dopřesni.",
         },
       });

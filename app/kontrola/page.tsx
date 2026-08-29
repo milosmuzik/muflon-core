@@ -4,7 +4,7 @@ import Link from "next/link";
 import { sloucitSkupinu } from "@/lib/actions/slouceni";
 import { vratitBezZdrojeNaNavrh } from "@/lib/actions/kontrola";
 import DohledatZdrojeTlacitko from "@/components/DohledatZdrojeTlacitko";
-import { STAV_LABEL } from "@/lib/constants";
+import { POZNAMKA_MB_CLENSTVI, STAV_LABEL } from "@/lib/constants";
 
 export const maxDuration = 60;
 
@@ -75,9 +75,22 @@ export default async function KontrolaPage() {
   }
   const duplicitniInterpreti = [...podleNazvu.values()].filter((v) => v.length > 1);
 
+  // Sestavy doplněné dávkovým importem z MusicBrainz (prisma/enrich-hudebnici.ts)
+  // – Interpret/Hudebník nemá redakční workflow jako příběhy/události, takže
+  // tohle je jediné místo, kde se dá tenhle typ automaticky doplněných,
+  // zatím lidsky nezkontrolovaných dat vůbec uvidět.
+  const nazevInterpretaMapa = new Map(interpretiVsichni.map((i) => [i.id, i.nazev]));
+  const interpretIdMbNezkontrolovano = new Set(
+    clenstviVsechny.filter((c) => c.poznamka === POZNAMKA_MB_CLENSTVI).map((c) => c.interpretId)
+  );
+  const interpretiMbNezkontrolovano = [...interpretIdMbNezkontrolovano]
+    .map((id) => ({ id, nazev: nazevInterpretaMapa.get(id) ?? "?" }))
+    .sort((a, b) => a.nazev.localeCompare(b.nazev));
+
   const pocetProblemu =
     referencniBezZdroju.length + pribehyBezZdroju.length + pribehyBezInterpreta.length +
-    podezreliHudebnici.length + duplicitniInterpreti.length + udalostiSchvaleneBezZdroju.length;
+    podezreliHudebnici.length + duplicitniInterpreti.length + udalostiSchvaleneBezZdroju.length +
+    interpretiMbNezkontrolovano.length;
 
   return (
     <div className="space-y-6">
@@ -158,6 +171,24 @@ export default async function KontrolaPage() {
               <li key={h.id}>
                 <Link href={`/hudebnici/${h.id}`} className="text-sm text-paper hover:text-accent">{h.jmeno}</Link>
                 <span className="text-muted text-xs font-mono ml-2">{h.pocetKapel} různých interpretů</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </IndexCard>
+
+      <IndexCard label={`🤖 Sestavy doplněné z MusicBrainz, nezkontrolováno (${interpretiMbNezkontrolovano.length})`}>
+        <p className="text-muted text-xs mb-3">
+          Dávkový import (<code>npm run enrich:hudebnici</code>) doplnil členy kapely automaticky z MusicBrainz –
+          obecné databáze mimo redakční whitelist, sama o sobě nestačí jako ověřený zdroj. Projdi a potvrď ručně.
+        </p>
+        {interpretiMbNezkontrolovano.length === 0 ? (
+          <p className="text-muted text-sm">Žádné nezkontrolované automatické sestavy.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {interpretiMbNezkontrolovano.map((i) => (
+              <li key={i.id}>
+                <Link href={`/interpreti/${i.id}`} className="text-sm text-paper hover:text-accent">{i.nazev}</Link>
               </li>
             ))}
           </ul>
