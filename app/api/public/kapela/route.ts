@@ -8,11 +8,17 @@
 // GET /api/public/kapela?jmeno=<nazev interpreta>
 //
 // Response:
-// { "nalezena": true, "nazev": "...", "pribehy": [{ "nadpis": "...", "obsah": "..." }], "kratkyPribeh": "..." }
+// { "nalezena": true, "nazev": "...",
+//   "pribehy": [{ "nadpis", "obsah" }],
+//   "udalosti": [{ "nazev", "datum", "popis" }],
+//   "sestava": [{ "jmeno", "role", "nastroj", "obdobiOd", "obdobiDo" }],
+//   "historie": "...", "kratkyPribeh": "..." }
 // { "nalezena": false }
 //
-// "pribehy" nese CELÝ text schválených příběhů (bez zkracování) - tohle
-// pole čte web Rádia Muflon. "kratkyPribeh" je starší, zkrácené pole
+// Všechny textové pole nesou CELÝ text (bez zkracování) - klient si sám
+// vybere, co a jak zobrazit. "sestava" (členové kapely) bývá vyplněná
+// prakticky vždy; "historie" slouží jako doplněk/náhrada, když chybí
+// příběhy nebo události. "kratkyPribeh" je starší, zkrácené pole
 // ponechané pro zpětnou kompatibilitu.
 
 import { NextRequest, NextResponse } from "next/server";
@@ -77,6 +83,32 @@ async function najdiVerejnePribehy(interpretId: string) {
   });
 }
 
+// Události zatím nemají formální vazbu na interpreta (jen volný text v
+// nazvu/popisu) - dohledáváme je stejně jako zbytek appky dedupuje
+// návrhy: shodou v názvu. Nedokonalé, ale lepší než nic, dokud vazba
+// Udalost -> Interpret v datovém modelu nepřibude.
+async function najdiVerejneUdalosti(nazevInterpreta: string) {
+  return prisma.udalost.findMany({
+    where: { nazev: { contains: nazevInterpreta, mode: "insensitive" }, stav: { in: VEREJNE_STAVY_PRIBEHU } },
+    orderBy: { datum: "asc" },
+  });
+}
+
+async function najdiSestavu(interpretId: string) {
+  const clenstvi = await prisma.clenstvi.findMany({
+    where: { interpretId },
+    include: { hudebnik: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return clenstvi.map((c) => ({
+    jmeno: c.hudebnik.jmeno,
+    role: c.role,
+    nastroj: c.nastroj,
+    obdobiOd: c.obdobiOd,
+    obdobiDo: c.obdobiDo,
+  }));
+}
+
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
@@ -95,7 +127,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ nalezena: false }, { headers: CORS_HEADERS });
   }
 
-  const pribehy = await najdiVerejnePribehy(interpret.id);
+  const [pribehy, udalosti, sestava] = await Promise.all([
+    najdiVerejnePribehy(interpret.id),
+    najdiVerejneUdalosti(interpret.nazev),
+    najdiSestavu(interpret.id),
+  ]);
   const kratkyPribeh = pribehy.length > 0
     ? zkratit(pribehy[0].obsah, MAX_DELKA_PRIBEHU)
     : (interpret.historie ? zkratit(interpret.historie, MAX_DELKA_PRIBEHU) : null);
@@ -105,6 +141,9 @@ export async function GET(req: NextRequest) {
       nalezena: true,
       nazev: interpret.nazev,
       pribehy: pribehy.map((p) => ({ nadpis: p.nadpis, obsah: p.obsah })),
+      udalosti: udalosti.map((u) => ({ nazev: u.nazev, datum: u.datum, popis: u.popis })),
+      sestava,
+      historie: interpret.historie ?? "",
       kratkyPribeh: kratkyPribeh ?? "",
     },
     {
