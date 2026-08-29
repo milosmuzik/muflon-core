@@ -80,25 +80,41 @@ export function urovenDuveryPriorita(uroven: string): number {
   return idx === -1 ? 0 : idx;
 }
 
-// Renomovaná rocková/metalová média s historií – redakcí ručně odsouhlasený
-// seznam domén. Zdroj v kategorii "media" počítá jako důvěryhodný STEJNĚ
-// jako oficiální web/sociální síť interpreta jen tehdy, když jeho URL patří
-// sem; jinak "media" samo o sobě na automatické schválení nestačí (viz
-// urovenDuveryZeZdroje níže). Rozšiřuj opatrně – jde o redakční rozhodnutí,
-// ne o technický detail.
-export const RENOMOVANA_MEDIA_DOMENY = [
-  "blabbermouth.net",
+// Renomovaná rocková/metalová média a databáze s historií – redakcí ručně
+// odsouhlasený seznam domén (stav k 29. 8. 2026, viz redakční poznámka u
+// jednotlivých skupin). Zdroj v kategorii "media" nebo "databaze" počítá
+// jako důvěryhodný STEJNĚ jako oficiální web/sociální síť interpreta jen
+// tehdy, když jeho URL patří sem; jinak samo o sobě na automatické
+// schválení nestačí (viz urovenDuveryZeZdroje níže). Rozšiřuj opatrně – jde
+// o redakční rozhodnutí, ne o technický detail.
+export const RENOMOVANE_ZDROJE_DOMENY = [
+  // Databáze/encyklopedie – nejlepší na holá fakta (kapela, album, sestava, rok).
+  "metal-archives.com", // Encyclopaedia Metallum
+  "allmusic.com",
+  "rateyourmusic.com",
+  "metalstorm.net",
+  // Dlouhodobě zavedené tiskové značky – nejlepší na kontext a historii.
+  "decibelmagazine.com",
+  "bravewords.com",
+  "kerrang.com",
+  "loudersound.com", // Metal Hammer UK + Classic Rock
   "metalhammer.co.uk",
   "metal-hammer.de",
-  "kerrang.com",
-  "loudwire.com",
-  "revolvermag.com",
-  "loudersound.com",
-  "metalinjection.net",
+  "rockhard.de",
+  "bleeding4metal.de",
   "spark-rockmagazine.cz",
+  "rockandpop.cz",
+  "burrn.online",
+  "heavymag.com.au",
+  // Zpravodajské weby – nejlepší na rychlost, menší hloubka.
+  "blabbermouth.net",
+  "loudwire.com",
+  "metalinjection.net",
+  "angrymetalguy.com",
+  "revolvermag.com",
 ];
 
-function jeRenomovaneMedium(url: string | null): boolean {
+function jeRenomovanyZdroj(url: string | null): boolean {
   if (!url) return false;
   let host: string;
   try {
@@ -106,19 +122,22 @@ function jeRenomovaneMedium(url: string | null): boolean {
   } catch {
     return false;
   }
-  return RENOMOVANA_MEDIA_DOMENY.some((d) => host === d || host.endsWith(`.${d}`));
+  return RENOMOVANE_ZDROJE_DOMENY.some((d) => host === d || host.endsWith(`.${d}`));
 }
 
 // Odvodí úroveň důvěry zdroje z jeho kategorie a URL (hierarchie zdrojů
-// výše + redakční whitelist médií). Jako dostatečný zdroj pro automatické
-// schválení (vysoká důvěra) počítá jen oficiální web/sociální síť interpreta,
-// nebo článek na renomovaném rockovém/metalovém serveru z whitelistu.
-// Obecné databáze a archivy jsou střední, rozhovory/knihy nízká, orientační
-// zdroje (Wikipedia, fanouškovský web) i neoznačená "media" mimo whitelist
-// neověřené.
+// výše + redakční whitelist médií/databází). Jako dostatečný zdroj pro
+// automatické schválení (vysoká důvěra) počítá jen oficiální web/sociální
+// síť interpreta, nebo článek/záznam na renomovaném serveru z whitelistu
+// (ať už jde o databázi, nebo médium). Obecná databáze/archiv mimo
+// whitelist (např. Discogs, MusicBrainz) je střední, rozhovory/knihy
+// nízká, orientační zdroje (Wikipedia, fanouškovský web) neověřené.
 export function urovenDuveryZeZdroje(kategorie: string, url: string | null): string {
   if (kategorie === "oficialni_web" || kategorie === "socialni_site") return "vysoka";
-  if (kategorie === "media") return jeRenomovaneMedium(url) ? "vysoka" : "neoverene";
+  if (kategorie === "media" || kategorie === "databaze") {
+    if (jeRenomovanyZdroj(url)) return "vysoka";
+    return kategorie === "databaze" ? "stredni" : "neoverene";
+  }
   const priorita = KATEGORIE_ZDROJE_PRIORITA[kategorie] ?? 8;
   if (priorita <= 4) return "stredni";
   if (priorita <= 7) return "nizka";

@@ -1,4 +1,4 @@
-import { RENOMOVANA_MEDIA_DOMENY } from "@/lib/constants";
+import { RENOMOVANE_ZDROJE_DOMENY } from "@/lib/constants";
 
 const GEMINI_MODEL = "gemini-flash-lite-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -6,7 +6,7 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GE
 export type NalezenyZdroj = { nazev: string; url: string; kategorie: string } | null;
 
 function sestavPrompt(nazev: string, obsah: string): string {
-  const seznamMedii = RENOMOVANA_MEDIA_DOMENY.join(", ");
+  const seznamZdroju = RENOMOVANE_ZDROJE_DOMENY.join(", ");
   return `Jsi redakční fact-checker hudební databáze Rádio Muflon (zaměření: rock a metal). Máme tenhle údaj, u kterého zatím chybí zdroj:
 
 "${nazev}: ${obsah}"
@@ -14,12 +14,12 @@ function sestavPrompt(nazev: string, obsah: string): string {
 Pomocí web search zkus dohledat zdroj, který tohle tvrzení potvrzuje. Přijímej POUZE:
 1) oficiální web interpreta,
 2) oficiální sociální síť interpreta,
-3) článek na jednom z těchto renomovaných rockových/metalových serverů: ${seznamMedii}.
+3) záznam/článek na jedné z těchto renomovaných domén (databáze i média, redakčně odsouhlasený seznam): ${seznamZdroju}.
 
-Žádné jiné zdroje nepoužívej – Wikipedii, obecné hudební databáze (AllMusic, Discogs, MusicBrainz), fanouškovské weby, rozhovory ani knihy v tomhle případě NEPOČÍTEJ jako dostatečné, i kdyby tvrzení potvrzovaly. Pokud nic z bodů 1–3 nenajdeš, vrať nalezeno: false – nevymýšlej si zdroj a nepoužívej slabší náhradu.
+Žádné jiné zdroje nepoužívej – Wikipedii, obecné hudební databáze mimo seznam (Discogs, MusicBrainz), fanouškovské weby, rozhovory ani knihy v tomhle případě NEPOČÍTEJ jako dostatečné, i kdyby tvrzení potvrzovaly. Pokud nic z bodů 1–3 nenajdeš, vrať nalezeno: false – nevymýšlej si zdroj a nepoužívej slabší náhradu.
 
 Vrať POUZE JSON (bez markdown):
-{"nalezeno": true, "nazev": "název zdroje/článku", "url": "https://...", "kategorie": "oficialni_web|socialni_site|media"}
+{"nalezeno": true, "nazev": "název zdroje/článku", "url": "https://...", "kategorie": "oficialni_web|socialni_site|media|databaze"}
 nebo
 {"nalezeno": false}`;
 }
@@ -52,7 +52,9 @@ export async function dohledatZdroj(nazev: string, obsah: string): Promise<Nalez
   try {
     const parsed = JSON.parse(ocistene.slice(start, konec + 1));
     if (!parsed?.nalezeno || !parsed.url || !parsed.nazev) return null;
-    const kategorie = ["oficialni_web", "socialni_site", "media"].includes(parsed.kategorie) ? parsed.kategorie : "media";
+    const kategorie = ["oficialni_web", "socialni_site", "media", "databaze"].includes(parsed.kategorie)
+      ? parsed.kategorie
+      : "media";
     return { nazev: String(parsed.nazev).slice(0, 200), url: String(parsed.url), kategorie };
   } catch {
     return null;
