@@ -8,8 +8,18 @@
 // GET /api/public/kapela?jmeno=<nazev interpreta>
 //
 // Response:
-// { "nalezena": true, "nazev": "...", "kratkyPribeh": "..." }
+// { "nalezena": true, "nazev": "...",
+//   "pribehy": [{ "nadpis", "obsah" }],
+//   "udalosti": [{ "nazev", "datum", "popis" }],
+//   "sestava": [{ "jmeno", "role", "nastroj", "obdobiOd", "obdobiDo" }],
+//   "historie": "...", "kratkyPribeh": "..." }
 // { "nalezena": false }
+//
+// Všechny textové pole nesou CELÝ text (bez zkracování) - klient si sám
+// vybere, co a jak zobrazit. "sestava" (členové kapely) bývá vyplněná
+// prakticky vždy; "historie" slouží jako doplněk/náhrada, když chybí
+// příběhy nebo události. "kratkyPribeh" je starší, zkrácené pole
+// ponechané pro zpětnou kompatibilitu.
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -62,18 +72,41 @@ async function najdiInterpreta(jmeno: string) {
   });
 }
 
-async function najdiKratkyPribeh(interpretId: string): Promise<string | null> {
+async function najdiVerejnePribehy(interpretId: string) {
   const vazby = await prisma.vazba.findMany({
     where: { zdrojovyTyp: "Pribeh", cilovyTyp: "Interpret", cilovyId: interpretId },
   });
-  if (vazby.length > 0) {
-    const pribehy = await prisma.pribeh.findMany({
-      where: { id: { in: vazby.map((v) => v.zdrojovyId) }, stav: { in: VEREJNE_STAVY_PRIBEHU } },
-      orderBy: { updatedAt: "desc" },
-    });
-    if (pribehy.length > 0) return zkratit(pribehy[0].obsah, MAX_DELKA_PRIBEHU);
-  }
-  return null;
+  if (vazby.length === 0) return [];
+  return prisma.pribeh.findMany({
+    where: { id: { in: vazby.map((v) => v.zdrojovyId) }, stav: { in: VEREJNE_STAVY_PRIBEHU } },
+    orderBy: { updatedAt: "desc" },
+  });
+}
+
+// Události zatím nemají formální vazbu na interpreta (jen volný text v
+// nazvu/popisu) - dohledáváme je stejně jako zbytek appky dedupuje
+// návrhy: shodou v názvu. Nedokonalé, ale lepší než nic, dokud vazba
+// Udalost -> Interpret v datovém modelu nepřibude.
+async function najdiVerejneUdalosti(nazevInterpreta: string) {
+  return prisma.udalost.findMany({
+    where: { nazev: { contains: nazevInterpreta, mode: "insensitive" }, stav: { in: VEREJNE_STAVY_PRIBEHU } },
+    orderBy: { datum: "asc" },
+  });
+}
+
+async function najdiSestavu(interpretId: string) {
+  const clenstvi = await prisma.clenstvi.findMany({
+    where: { interpretId },
+    include: { hudebnik: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return clenstvi.map((c) => ({
+    jmeno: c.hudebnik.jmeno,
+    role: c.role,
+    nastroj: c.nastroj,
+    obdobiOd: c.obdobiOd,
+    obdobiDo: c.obdobiDo,
+  }));
 }
 
 export async function OPTIONS() {
@@ -94,12 +127,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ nalezena: false }, { headers: CORS_HEADERS });
   }
 
-  const kratkyPribeh =
-    (await najdiKratkyPribeh(interpret.id)) ??
-    (interpret.historie ? zkratit(interpret.historie, MAX_DELKA_PRIBEHU) : null);
+  const [pribehy, udalosti, sestava] = await Promise.all([
+    najdiVerejnePribehy(interpret.id),
+    najdiVerejneUdalosti(interpret.nazev),
+    najdiSestavu(interpret.id),
+  ]);
+  const kratkyPribeh = pribehy.length > 0
+    ? zkratit(pribehy[0].obsah, MAX_DELKA_PRIBEHU)
+    : (interpret.historie ? zkratit(interpret.historie, MAX_DELKA_PRIBEHU) : null);
 
   return NextResponse.json(
-    { nalezena: true, nazev: interpret.nazev, kratkyPribeh: kratkyPribeh ?? "" },
+    {
+      nalezena: true,
+      nazev: interpret.nazev,
+      pribehy: pribehy.map((p) => ({ nadpis: p.nadpis, obsah: p.obsah })),
+      udalosti: udalosti.map((u) => ({ nazev: u.nazev, datum: u.datum, popis: u.popis })),
+      sestava,
+      historie: interpret.historie ?? "",
+      kratkyPribeh: kratkyPribeh ?? "",
+    },
     {
       headers: {
         ...CORS_HEADERS,
