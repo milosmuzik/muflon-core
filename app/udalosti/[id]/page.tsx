@@ -26,6 +26,7 @@ export default async function UdalostDetail({ params }: { params: { id: string }
   ]);
   const vazby = await Promise.all(vazbyRaw.map(async (v) => ({ ...v, cilovyNazev: await nazevObjektu(v.cilovyTyp, v.cilovyId) })));
   const dalsiStav = DALSI_STAV[udalost.stav];
+  const bezZdroje = zdroje.length === 0;
 
   return (
     <div className="space-y-6">
@@ -42,6 +43,12 @@ export default async function UdalostDetail({ params }: { params: { id: string }
         </div>
         <p className="text-muted text-sm mt-1 font-mono">{udalost.datum}{udalost.opakujeSe ? " · každoročně" : ""}</p>
       </div>
+
+      {bezZdroje && (
+        <div className="border border-rust/40 bg-rust/10 text-rust text-sm rounded-sm px-4 py-2">
+          Tato událost zatím nemá žádný zdroj. Lepší je označit údaj jako neověřený, než ho prezentovat jako fakt.
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 space-y-5">
@@ -128,11 +135,17 @@ export default async function UdalostDetail({ params }: { params: { id: string }
           <IndexCard label="Redakční workflow">
             <p className="text-muted text-sm mb-3">Aktuální stav: <StatusBadge stav={udalost.stav} /></p>
             {dalsiStav ? (
-              <form action={posunoutStav.bind(null, "udalost", udalost.id, udalost.stav, cesta)}>
-                <button className="w-full bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring text-sm">
-                  Posunout na „{STAV_LABEL[dalsiStav]}“
-                </button>
-              </form>
+              bezZdroje ? (
+                <p className="text-rust text-xs">
+                  Nejdřív přidej aspoň jeden zdroj – bez něj stav nejde posunout dál.
+                </p>
+              ) : (
+                <form action={posunoutStav.bind(null, "udalost", udalost.id, udalost.stav, cesta)}>
+                  <button className="w-full bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring text-sm">
+                    Posunout na „{STAV_LABEL[dalsiStav]}“
+                  </button>
+                </form>
+              )
             ) : (
               <p className="text-muted text-xs">Konečný stav dosažen.</p>
             )}

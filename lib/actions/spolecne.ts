@@ -165,12 +165,19 @@ export async function posunoutStav(
   const novyStav = DALSI_STAV[aktualniStav];
   if (!novyStav) return;
 
+  const typ = model === "pribeh" ? "Pribeh" : "Udalost";
+
+  // Bez zdroje je údaj jen tvrzením, ne ověřenou znalostí (kap. 4.4
+  // Ověřitelnost) – stav proto nejde posunout dál, dokud záznam nemá
+  // aspoň jeden zdroj.
+  const pocetZdroju = await prisma.zdroj.count({ where: { cilovyTyp: typ, cilovyId: id } });
+  if (pocetZdroju === 0) return;
+
   if (model === "pribeh") {
     await prisma.pribeh.update({ where: { id }, data: { stav: novyStav } });
   } else {
     await prisma.udalost.update({ where: { id }, data: { stav: novyStav } });
   }
-  const typ = model === "pribeh" ? "Pribeh" : "Udalost";
   await zapisHistorii(typ, id, "zmena_stavu", `${aktualniStav} → ${novyStav}`);
   revalidatePath(cestaZpet);
 }
