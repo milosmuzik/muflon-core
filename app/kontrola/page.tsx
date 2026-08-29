@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import IndexCard from "@/components/IndexCard";
 import Link from "next/link";
 import { sloucitSkupinu } from "@/lib/actions/slouceni";
+import { vratitBezZdrojeNaNavrh } from "@/lib/actions/kontrola";
+import { STAV_LABEL } from "@/lib/constants";
 
 export default async function KontrolaPage() {
   const [
@@ -12,6 +14,8 @@ export default async function KontrolaPage() {
     vazbyPribehInterpret,
     clenstviVsechny,
     udalostiNeoverene,
+    udalostiVsechny,
+    udalostiZdroje,
   ] = await Promise.all([
     prisma.interpret.findMany({
       orderBy: { createdAt: "asc" },
@@ -23,6 +27,8 @@ export default async function KontrolaPage() {
     prisma.vazba.findMany({ where: { zdrojovyTyp: "Pribeh", cilovyTyp: "Interpret" }, select: { zdrojovyId: true } }),
     prisma.clenstvi.findMany({ include: { hudebnik: true } }),
     prisma.udalost.findMany({ where: { zdrojAI: false, stav: "navrh" }, orderBy: { createdAt: "asc" } }),
+    prisma.udalost.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.zdroj.findMany({ where: { cilovyTyp: "Udalost" }, select: { cilovyId: true } }),
   ]);
 
   const interpretIdSeZdrojem = new Set(vsechnyZdroje.map((z) => z.cilovyId));
@@ -34,6 +40,15 @@ export default async function KontrolaPage() {
 
   const pribehIdSeZdrojem = new Set(pribehyZdroje.map((z) => z.cilovyId));
   const pribehyBezZdroju = pribehyVsechny.filter((p) => !pribehIdSeZdrojem.has(p.id));
+
+  const udalostIdSeZdrojem = new Set(udalostiZdroje.map((z) => z.cilovyId));
+  const udalostiBezZdroje = udalostiVsechny.filter((u) => !udalostIdSeZdrojem.has(u.id));
+
+  // Skutečný rozpor: záznam se tváří jako ověřený/schválený/publikovaný
+  // (stav dál než "návrh"), ale nemá žádný zdroj. U "návrhu" je to v
+  // pořádku – tam se zdroj teprve doplňuje.
+  const pribehySchvaleneBezZdroju = pribehyBezZdroju.filter((p) => p.stav !== "navrh");
+  const udalostiSchvaleneBezZdroju = udalostiBezZdroje.filter((u) => u.stav !== "navrh");
 
   const pribehIdSVazbou = new Set(vazbyPribehInterpret.map((v) => v.zdrojovyId));
   const pribehyBezInterpreta = pribehyVsechny.filter((p) => !pribehIdSVazbou.has(p.id));
@@ -59,7 +74,7 @@ export default async function KontrolaPage() {
 
   const pocetProblemu =
     referencniBezZdroju.length + pribehyBezZdroju.length + pribehyBezInterpreta.length +
-    podezreliHudebnici.length + duplicitniInterpreti.length;
+    podezreliHudebnici.length + duplicitniInterpreti.length + udalostiSchvaleneBezZdroju.length;
 
   return (
     <div className="space-y-6">
@@ -70,6 +85,50 @@ export default async function KontrolaPage() {
           {pocetProblemu === 0 ? "Žádné nalezené nesrovnalosti." : `${pocetProblemu} věcí k ruční kontrole.`}
         </p>
       </div>
+
+      {(pribehySchvaleneBezZdroju.length > 0 || udalostiSchvaleneBezZdroju.length > 0) && (
+        <IndexCard
+          label={`🚨 Označeno jako ověřené/schválené, ale bez zdroje (${pribehySchvaleneBezZdroju.length + udalostiSchvaleneBezZdroju.length})`}
+        >
+          <p className="text-muted text-sm mb-3">
+            Tyhle záznamy mají stav dál než „návrh" (viz štítek), ale v databázi u nich není žádný zdroj – to je
+            přímý rozpor s principem „bez zdroje je údaj jen tvrzením, ne ověřenou znalostí" (kap. 4.4
+            Ověřitelnost). Většinou pocházejí ze starého importu karet, který stav nastavoval napevno. Oprava je
+            vrátí na „návrh" – zůstanou v databázi, jen přestanou tvrdit něco, co nemají čím podložit.
+          </p>
+          <form action={vratitBezZdrojeNaNavrh} className="mb-4">
+            <button className="bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring text-sm">
+              Vrátit všechny na „Návrh"
+            </button>
+          </form>
+          {pribehySchvaleneBezZdroju.length > 0 && (
+            <div className="mb-3">
+              <p className="tab-label mb-1.5">Příběhy ({pribehySchvaleneBezZdroju.length})</p>
+              <ul className="space-y-1">
+                {pribehySchvaleneBezZdroju.map((p) => (
+                  <li key={p.id} className="text-sm">
+                    <Link href={`/pribehy/${p.id}`} className="text-paper hover:text-accent">{p.nadpis}</Link>
+                    <span className="text-muted text-xs font-mono ml-2">{STAV_LABEL[p.stav] ?? p.stav}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {udalostiSchvaleneBezZdroju.length > 0 && (
+            <div>
+              <p className="tab-label mb-1.5">Události ({udalostiSchvaleneBezZdroju.length})</p>
+              <ul className="space-y-1">
+                {udalostiSchvaleneBezZdroju.map((u) => (
+                  <li key={u.id} className="text-sm">
+                    <Link href={`/udalosti/${u.id}`} className="text-paper hover:text-accent">{u.nazev}</Link>
+                    <span className="text-muted text-xs font-mono ml-2">{STAV_LABEL[u.stav] ?? u.stav}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </IndexCard>
+      )}
 
       <IndexCard label={`⚠ Referenční karty bez zdroje (${referencniBezZdroju.length})`}>
         {referencniBezZdroju.length === 0 ? (
