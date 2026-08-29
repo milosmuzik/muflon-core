@@ -80,20 +80,57 @@ export function urovenDuveryPriorita(uroven: string): number {
   return idx === -1 ? 0 : idx;
 }
 
-// Odvodí úroveň důvěry zdroje z jeho kategorie (hierarchie zdrojů výše).
-// Oficiální web/sítě = vysoká, archivy/databáze = střední, média/rozhovory/knihy = nízká,
-// orientační zdroje (Wikipedia, fanouškovské weby) = neověřené.
-export function urovenDuveryZKategorie(kategorie: string): string {
+// Renomovaná rocková/metalová média s historií – redakcí ručně odsouhlasený
+// seznam domén. Zdroj v kategorii "media" počítá jako důvěryhodný STEJNĚ
+// jako oficiální web/sociální síť interpreta jen tehdy, když jeho URL patří
+// sem; jinak "media" samo o sobě na automatické schválení nestačí (viz
+// urovenDuveryZeZdroje níže). Rozšiřuj opatrně – jde o redakční rozhodnutí,
+// ne o technický detail.
+export const RENOMOVANA_MEDIA_DOMENY = [
+  "blabbermouth.net",
+  "metalhammer.co.uk",
+  "metal-hammer.de",
+  "kerrang.com",
+  "loudwire.com",
+  "revolvermag.com",
+  "loudersound.com",
+  "metalinjection.net",
+  "spark-rockmagazine.cz",
+];
+
+function jeRenomovaneMedium(url: string | null): boolean {
+  if (!url) return false;
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return false;
+  }
+  return RENOMOVANA_MEDIA_DOMENY.some((d) => host === d || host.endsWith(`.${d}`));
+}
+
+// Odvodí úroveň důvěry zdroje z jeho kategorie a URL (hierarchie zdrojů
+// výše + redakční whitelist médií). Jako dostatečný zdroj pro automatické
+// schválení (vysoká důvěra) počítá jen oficiální web/sociální síť interpreta,
+// nebo článek na renomovaném rockovém/metalovém serveru z whitelistu.
+// Obecné databáze a archivy jsou střední, rozhovory/knihy nízká, orientační
+// zdroje (Wikipedia, fanouškovský web) i neoznačená "media" mimo whitelist
+// neověřené.
+export function urovenDuveryZeZdroje(kategorie: string, url: string | null): string {
+  if (kategorie === "oficialni_web" || kategorie === "socialni_site") return "vysoka";
+  if (kategorie === "media") return jeRenomovaneMedium(url) ? "vysoka" : "neoverene";
   const priorita = KATEGORIE_ZDROJE_PRIORITA[kategorie] ?? 8;
-  if (priorita <= 2) return "vysoka";
   if (priorita <= 4) return "stredni";
   if (priorita <= 7) return "nizka";
   return "neoverene";
 }
 
-// Od téhle úrovně důvěry (a výš) se událost schvaluje automaticky, bez
-// ručního ověření – viz DALSI_STAV workflow (navrh -> overeno -> schvaleno).
-export const AUTOSCHVALENI_OD_UROVNE = urovenDuveryPriorita("stredni");
+// Od téhle úrovně důvěry (a výš) se událost/příběh schvaluje automaticky,
+// bez ručního ověření – viz DALSI_STAV workflow (navrh -> overeno ->
+// schvaleno). Jen "vysoká": oficiální kanál interpreta, nebo renomované
+// rockové/metalové médium z whitelistu výše. Databáze, rozhovory ani knihy
+// samy o sobě nestačí.
+export const AUTOSCHVALENI_OD_UROVNE = urovenDuveryPriorita("vysoka");
 
 // Poznámky, kterými si zdroje vytvořené AI agentem značí svůj původ –
 // podle nich jde poznat "napevno" dosazenou důvěru od té, co ručně

@@ -4,7 +4,7 @@ import {
   AUTOSCHVALENI_OD_UROVNE,
   POZNAMKA_AI_NAVRH_KALENDAR,
   urovenDuveryPriorita,
-  urovenDuveryZKategorie,
+  urovenDuveryZeZdroje,
 } from "@/lib/constants";
 
 const GEMINI_MODEL = "gemini-flash-lite-latest";
@@ -30,7 +30,7 @@ function sestavPrompt(den: number, mesic: number): string {
   const datumText = `${den}. ${NAZVY_MESICU_2P[mesic - 1]}`;
   return `Jsi redakční asistent hudební databáze Rádio Muflon (zaměření: rock a metal). Najdi ověřitelné hudební historické události vázané přesně na kalendářní datum ${datumText} (libovolný rok) – narození nebo úmrtí hudebníků, výročí založení kapel, výročí vydání alb, nebo zajímavosti (např. co se stalo na konkrétním koncertu tento den).
 
-Použij web search a dodržuj tuto hierarchii důvěryhodnosti zdrojů (nejvyšší priorita první): 1) oficiální web interpreta, 2) oficiální sociální sítě, 3) bookletky/tiskoviny/archivy, 4) hudební databáze (AllMusic, Discogs, MusicBrainz), 5) hudební média (Loudwire, Blabbermouth, Metal Hammer, Kerrang!, Revolver), 6) rozhovory/ověřená videa, 7) knihy/biografie. Wikipedii a fanouškovské weby používej jen jako orientační bod, ne jako hlavní zdroj v odpovědi.
+Použij web search a dodržuj tuto hierarchii důvěryhodnosti zdrojů (nejvyšší priorita první): 1) oficiální web interpreta, 2) oficiální sociální sítě, 3) bookletky/tiskoviny/archivy, 4) hudební databáze (AllMusic, Discogs, MusicBrainz), 5) hudební média (Loudwire, Blabbermouth, Metal Hammer, Kerrang!, Revolver, Metal Injection, Louder/Classic Rock, Spark Rock Magazine), 6) rozhovory/ověřená videa, 7) knihy/biografie. Wikipedii a fanouškovské weby používej jen jako orientační bod, ne jako hlavní zdroj v odpovědi. Preferuj zdroje z bodů 1, 2 a 5 – ty jediné stačí samy o sobě k automatickému schválení.
 
 Vrať POUZE JSON pole (žádný text okolo, žádné markdown zpětné uvozovky) s max. 3 nejzajímavějšími a nejjistějšími položkami. Pokud nic ověřitelného nenajdeš, vrať prázdné pole []. Formát každé položky:
 {"nazev": "krátký název (do 60 znaků)", "typ": "vyroci_alba|narozeniny|umrti|jina", "popis": "2-3 věty vlastními slovy, redakčně zpracované, ne opsané", "zdroje": [{"nazev": "název zdroje", "url": "https://...", "kategorie": "jedna z: oficialni_web|socialni_site|archivni|databaze|media|rozhovor|kniha|orientacni"}]}
@@ -134,7 +134,7 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
         for (const zdroj of polozka.zdroje.slice(0, 5)) {
           if (!zdroj.url) continue;
           const kategorie = PLATNE_KATEGORIE.has(zdroj.kategorie) ? zdroj.kategorie : "orientacni";
-          const uroverDuvery = urovenDuveryZKategorie(kategorie);
+          const uroverDuvery = urovenDuveryZeZdroje(kategorie, zdroj.url);
           nejvyssiUroven = Math.max(nejvyssiUroven, urovenDuveryPriorita(uroverDuvery));
           await prisma.zdroj.create({
             data: {
@@ -157,7 +157,7 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
             "Udalost",
             novaUdalost.id,
             "zmena_stavu",
-            "Automaticky schváleno – nejméně jeden zdroj se střední nebo vyšší důvěrou"
+            "Automaticky schváleno – nejméně jeden zdroj s dostatečnou důvěrou"
           );
         }
 

@@ -12,7 +12,7 @@ export async function zjistiVice(nazev: string, znamyPopis: string | null): Prom
 
   const prompt = `Jsi redakční asistent hudební databáze Rádio Muflon. K události "${nazev}" už máme tuto informaci: "${znamyPopis ?? "(zatím nic)"}"
 
-Pomocí web search najdi DALŠÍ, hlubší podrobnosti k tomuto tématu (konkrétní fakta, souvislosti, zajímavosti) — neopakuj to, co už víme výše. Dodržuj hierarchii zdrojů: 1) oficiální web, 2) oficiální sociální sítě, 3) archivní materiály, 4) hudební databáze, 5) hudební média, 6) rozhovory, 7) knihy. Wikipedii použij jen orientačně.
+Pomocí web search najdi DALŠÍ, hlubší podrobnosti k tomuto tématu (konkrétní fakta, souvislosti, zajímavosti) — neopakuj to, co už víme výše. Dodržuj hierarchii zdrojů: 1) oficiální web, 2) oficiální sociální sítě, 3) archivní materiály, 4) hudební databáze, 5) hudební média (Loudwire, Blabbermouth, Metal Hammer, Kerrang!, Revolver, Metal Injection, Louder/Classic Rock, Spark Rock Magazine), 6) rozhovory, 7) knihy. Wikipedii použij jen orientačně. Preferuj zdroje z bodů 1, 2 a 5 – ty jediné stačí samy o sobě k automatickému schválení.
 
 Vrať POUZE JSON (bez markdown):
 {"rozsireni": "2-4 věty nových podrobností, vlastními slovy", "zdroje": [{"nazev": "...", "url": "https://...", "kategorie": "jedna z: oficialni_web|socialni_site|archivni|databaze|media|rozhovor|kniha|orientacni"}]}

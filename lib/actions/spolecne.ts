@@ -9,10 +9,13 @@ import { revalidatePath } from "next/cache";
 // u kterých dává smysl automaticky posunout stav podle důvěry zdroje.
 const STAVOVE_ENTITY = new Set(["Pribeh", "Udalost"]);
 
-// Pokud přidaný/upravený zdroj má střední nebo vyšší důvěru a záznam ještě
-// čeká na schválení (návrh/ověřeno), rovnou ho schvaluje – nemusí se čekat
-// na ruční "Posunout stav".
-async function zvazAutomatickeSchvaleni(cilovyTyp: string, cilovyId: string, uroverDuvery: string) {
+// Pokud přidaný/upravený zdroj má dostatečnou důvěru (oficiální kanál
+// interpreta nebo renomované médium z whitelistu – viz AUTOSCHVALENI_OD_UROVNE)
+// a záznam ještě čeká na schválení (návrh/ověřeno), rovnou ho schvaluje –
+// nemusí se čekat na ruční "Posunout stav". Exportováno, protože stejnou
+// logiku potřebuje i AI enrichment (rozsiritUdalost, dohledávání zdrojů),
+// ne jen tenhle formulář.
+export async function zvazAutomatickeSchvaleni(cilovyTyp: string, cilovyId: string, uroverDuvery: string) {
   if (!STAVOVE_ENTITY.has(cilovyTyp)) return;
   if (urovenDuveryPriorita(uroverDuvery) < AUTOSCHVALENI_OD_UROVNE) return;
 
@@ -27,7 +30,7 @@ async function zvazAutomatickeSchvaleni(cilovyTyp: string, cilovyId: string, uro
   } else {
     await prisma.udalost.update({ where: { id: cilovyId }, data: { stav: "schvaleno" } });
   }
-  await zapisHistorii(cilovyTyp, cilovyId, "zmena_stavu", "Automaticky schváleno – přidán zdroj se střední nebo vyšší důvěrou");
+  await zapisHistorii(cilovyTyp, cilovyId, "zmena_stavu", "Automaticky schváleno – přidán zdroj s dostatečnou důvěrou");
 }
 
 // ---------------------------------------------------------------------------

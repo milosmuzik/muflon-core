@@ -3,7 +3,10 @@ import IndexCard from "@/components/IndexCard";
 import Link from "next/link";
 import { sloucitSkupinu } from "@/lib/actions/slouceni";
 import { vratitBezZdrojeNaNavrh } from "@/lib/actions/kontrola";
+import DohledatZdrojeTlacitko from "@/components/DohledatZdrojeTlacitko";
 import { STAV_LABEL } from "@/lib/constants";
+
+export const maxDuration = 60;
 
 export default async function KontrolaPage() {
   const [
@@ -195,6 +198,15 @@ export default async function KontrolaPage() {
             })}
           </div>
         )}
+      </IndexCard>
+
+      <IndexCard label="🔍 Dohledat zdroje (AI fact-checker)">
+        <p className="text-muted text-sm mb-3">
+          Projede příběhy a události bez zdroje a přes web search jim zkusí najít oficiální kanál interpreta nebo
+          článek na renomovaném rockovém/metalovém serveru (viz whitelist v kódu). Zpracovává po dávkách kvůli
+          limitu funkce – klikni víckrát, dokud fronta neubude. Co nenajde, nechá ve stavu „návrh".
+        </p>
+        <DohledatZdrojeTlacitko />
       </IndexCard>
 
       <IndexCard label={`📖 Příběhy bez zdroje (${pribehyBezZdroju.length})`}>

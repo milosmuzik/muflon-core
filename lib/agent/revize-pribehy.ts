@@ -8,7 +8,7 @@ export type VysledekReviziPribehu = {
 };
 
 // Projde všechny čekající příběhy (návrh/ověřeno) a ty, které mají aspoň
-// jeden zdroj se střední nebo vyšší důvěrou, rovnou schválí. Na rozdíl od
+// jeden zdroj s dostatečnou důvěrou (oficiální kanál nebo renomované médium), rovnou schválí. Na rozdíl od
 // revize událostí tu nejsou žádné AI-generované zdroje k přepočítání –
 // příběhy zatím vznikají jen ručně, se zdroji zadanými přímo editorem.
 export async function revidovatPribehy(): Promise<VysledekReviziPribehu> {
@@ -24,7 +24,7 @@ export async function revidovatPribehy(): Promise<VysledekReviziPribehu> {
         "Pribeh",
         pribeh.id,
         "zmena_stavu",
-        "Automaticky schváleno při hromadné revizi – zdroj se střední nebo vyšší důvěrou"
+        "Automaticky schváleno při hromadné revizi – zdroj s dostatečnou důvěrou"
       );
       schvalenoNove++;
     }
