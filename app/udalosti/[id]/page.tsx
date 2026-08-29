@@ -10,7 +10,7 @@ import { upravitUdalost, rozsiritUdalost } from "@/lib/actions/udalosti";
 import { najdiVazby } from "@/lib/actions/spolecne";
 import { prepnoutZverejneni } from "@/lib/actions/agent";
 import { nahratFotkuUdalosti } from "@/lib/actions/upload";
-import { publikovatNaFacebook, publikovatNaInstagram } from "@/lib/actions/socialni";
+import { publikovatNaFacebook, publikovatNaInstagram, publikovatNaX } from "@/lib/actions/socialni";
 
 export default async function UdalostDetail({ params }: { params: { id: string } }) {
   const udalost = await prisma.udalost.findUnique({ where: { id: params.id } });
@@ -102,15 +102,20 @@ export default async function UdalostDetail({ params }: { params: { id: string }
             <p className="tab-label mb-2">Náhled grafiky</p>
             <img src={`/api/socialni/obrazek/${udalost.id}`} alt="" className="w-full rounded-sm border border-line mb-4" />
 
-            <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className="grid grid-cols-3 gap-2 mb-4">
               <form action={publikovatNaFacebook.bind(null, udalost.id)}>
                 <button className="w-full text-xs bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring">
-                  Publikovat na Facebook
+                  Facebook
                 </button>
               </form>
               <form action={publikovatNaInstagram.bind(null, udalost.id)}>
                 <button className="w-full text-xs bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring">
-                  Publikovat na Instagram
+                  Instagram
+                </button>
+              </form>
+              <form action={publikovatNaX.bind(null, udalost.id)}>
+                <button className="w-full text-xs bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring">
+                  X
                 </button>
               </form>
             </div>

@@ -1,6 +1,6 @@
 // app/api/cron/publikovat-vyroci/route.ts
 //
-// Denní automatická publikace na sociální sítě (Facebook + Instagram).
+// Denní automatická publikace na sociální sítě (Facebook + Instagram + X).
 // Běží večer, po ranním navrhy-kalendar cronu, který na dnešek navrhne
 // a případně auto-schválí kalendářní výročí. Výběr, CO se publikuje, se
 // neděje ručně - bere se první dnešní výročí ve stavu "schvaleno"/
@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { publikovatNaFacebook, publikovatNaInstagram } from "@/lib/actions/socialni";
+import { publikovatNaFacebook, publikovatNaInstagram, publikovatNaX } from "@/lib/actions/socialni";
 
 export const maxDuration = 30;
 
@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
 
   let publikovanoFacebook = null as string | null;
   let publikovanoInstagram = null as string | null;
+  let publikovanoX = null as string | null;
 
   for (const udalost of kandidati) {
     if (!publikovanoFacebook && !(await jizLetosPublikovano(udalost.id, "facebook", letosniZacatek))) {
@@ -54,8 +55,12 @@ export async function GET(request: NextRequest) {
       await publikovatNaInstagram(udalost.id);
       publikovanoInstagram = udalost.nazev;
     }
-    if (publikovanoFacebook && publikovanoInstagram) break;
+    if (!publikovanoX && !(await jizLetosPublikovano(udalost.id, "x", letosniZacatek))) {
+      await publikovatNaX(udalost.id);
+      publikovanoX = udalost.nazev;
+    }
+    if (publikovanoFacebook && publikovanoInstagram && publikovanoX) break;
   }
 
-  return NextResponse.json({ kandidatu: kandidati.length, publikovanoFacebook, publikovanoInstagram });
+  return NextResponse.json({ kandidatu: kandidati.length, publikovanoFacebook, publikovanoInstagram, publikovanoX });
 }
