@@ -1,8 +1,8 @@
 // app/api/public/kapela/route.ts
 //
 // Veřejný, neautentizovaný endpoint pro dotaz "co víme o téhle kapele" -
-// používá ho např. muflon-stats appka k obohacení živého logu o krátký
-// text ke hrajícímu interpretovi.
+// používá ho např. web Rádia Muflon a appka muflon-stats k obohacení
+// živého logu o krátký text ke hrajícímu interpretovi.
 //
 // Request:
 // GET /api/public/kapela?jmeno=<nazev interpreta>
@@ -13,6 +13,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+
+// Endpoint je veřejný a čte se z libovolné domény (web Rádia Muflon běží
+// jinde než muflon-core), proto CORS povolujeme pro kohokoliv.
+const CORS_HEADERS = { "Access-Control-Allow-Origin": "*" };
 
 // Kolik znaků smí mít vrácený "krátký" příběh - jde o stručnou ukázku,
 // ne celý článek.
@@ -72,15 +76,22 @@ async function najdiKratkyPribeh(interpretId: string): Promise<string | null> {
   return null;
 }
 
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: { ...CORS_HEADERS, "Access-Control-Allow-Methods": "GET, OPTIONS" },
+  });
+}
+
 export async function GET(req: NextRequest) {
   const jmeno = req.nextUrl.searchParams.get("jmeno")?.trim();
   if (!jmeno) {
-    return NextResponse.json({ nalezena: false });
+    return NextResponse.json({ nalezena: false }, { headers: CORS_HEADERS });
   }
 
   const interpret = await najdiInterpreta(jmeno);
   if (!interpret) {
-    return NextResponse.json({ nalezena: false });
+    return NextResponse.json({ nalezena: false }, { headers: CORS_HEADERS });
   }
 
   const kratkyPribeh =
@@ -89,6 +100,11 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(
     { nalezena: true, nazev: interpret.nazev, kratkyPribeh: kratkyPribeh ?? "" },
-    { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } }
+    {
+      headers: {
+        ...CORS_HEADERS,
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+      },
+    }
   );
 }
