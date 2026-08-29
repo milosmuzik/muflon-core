@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
-import { AUTOSCHVALENI_OD_UROVNE, DALSI_STAV, urovenDuveryPriorita } from "@/lib/constants";
+import { AUTOSCHVALENI_OD_UROVNE, urovenDuveryPriorita } from "@/lib/constants";
 import { revalidatePath } from "next/cache";
 
 // Entity s redakčním workflow (navrh -> overeno -> schvaleno -> ...) – jediné,
@@ -156,31 +156,32 @@ export async function nazevObjektu(typ: string, id: string): Promise<string> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Workflow – posun stavu vpřed (kap. Etapa 3, pracovní stavy)
-// ---------------------------------------------------------------------------
-export async function posunoutStav(
-  model: "pribeh" | "udalost",
-  id: string,
-  aktualniStav: string,
-  cestaZpet: string
-) {
-  const novyStav = DALSI_STAV[aktualniStav];
-  if (!novyStav) return;
-
-  const typ = model === "pribeh" ? "Pribeh" : "Udalost";
-
-  // Bez zdroje je údaj jen tvrzením, ne ověřenou znalostí (kap. 4.4
-  // Ověřitelnost) – stav proto nejde posunout dál, dokud záznam nemá
-  // aspoň jeden zdroj.
-  const pocetZdroju = await prisma.zdroj.count({ where: { cilovyTyp: typ, cilovyId: id } });
-  if (pocetZdroju === 0) return;
-
-  if (model === "pribeh") {
-    await prisma.pribeh.update({ where: { id }, data: { stav: novyStav } });
-  } else {
-    await prisma.udalost.update({ where: { id }, data: { stav: novyStav } });
-  }
-  await zapisHistorii(typ, id, "zmena_stavu", `${aktualniStav} → ${novyStav}`);
-  revalidatePath(cestaZpet);
+// Najde VŠECHNY vazby objektu, ať je v nich zdrojový, nebo cílový (dřív se
+// na stránce objektu ukazovaly jen vazby, kde byl zdrojový - vazba přidaná
+// z druhé strany tak "zmizela"). "smer" říká, jestli jde o vazbu založenou
+// odsud ("odchozi"), nebo na tenhle objekt odjinud ("prichozi").
+export async function najdiVazby(typ: string, id: string) {
+  const vazby = await prisma.vazba.findMany({
+    where: {
+      OR: [
+        { zdrojovyTyp: typ, zdrojovyId: id },
+        { cilovyTyp: typ, cilovyId: id },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  return Promise.all(
+    vazby.map(async (v) => {
+      const jeZdrojovy = v.zdrojovyTyp === typ && v.zdrojovyId === id;
+      const druhaStranaTyp = jeZdrojovy ? v.cilovyTyp : v.zdrojovyTyp;
+      const druhaStranaId = jeZdrojovy ? v.cilovyId : v.zdrojovyId;
+      return {
+        ...v,
+        smer: jeZdrojovy ? ("odchozi" as const) : ("prichozi" as const),
+        cilovyTyp: druhaStranaTyp,
+        cilovyId: druhaStranaId,
+        cilovyNazev: await nazevObjektu(druhaStranaTyp, druhaStranaId),
+      };
+    })
+  );
 }

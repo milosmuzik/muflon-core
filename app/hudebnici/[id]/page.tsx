@@ -6,7 +6,7 @@ import ZdrojeSekce from "@/components/ZdrojeSekce";
 import VazbySekce from "@/components/VazbySekce";
 import HistorieSekce from "@/components/HistorieSekce";
 import { upravitHudebnika } from "@/lib/actions/hudebnici";
-import { nazevObjektu } from "@/lib/actions/spolecne";
+import { najdiVazby } from "@/lib/actions/spolecne";
 
 export default async function HudebnikDetail({ params }: { params: { id: string } }) {
   const hudebnik = await prisma.hudebnik.findUnique({
@@ -16,12 +16,11 @@ export default async function HudebnikDetail({ params }: { params: { id: string 
   if (!hudebnik) notFound();
 
   const cesta = `/hudebnici/${hudebnik.id}`;
-  const [zdroje, vazbyRaw, historie] = await Promise.all([
+  const [zdroje, vazby, historie] = await Promise.all([
     prisma.zdroj.findMany({ where: { cilovyTyp: "Hudebnik", cilovyId: hudebnik.id }, orderBy: { createdAt: "desc" } }),
-    prisma.vazba.findMany({ where: { zdrojovyTyp: "Hudebnik", zdrojovyId: hudebnik.id }, orderBy: { createdAt: "desc" } }),
+    najdiVazby("Hudebnik", hudebnik.id),
     prisma.historieZmeny.findMany({ where: { entitaTyp: "Hudebnik", entitaId: hudebnik.id }, orderBy: { createdAt: "desc" }, take: 20 }),
   ]);
-  const vazby = await Promise.all(vazbyRaw.map(async (v) => ({ ...v, cilovyNazev: await nazevObjektu(v.cilovyTyp, v.cilovyId) })));
 
   return (
     <div className="space-y-6">

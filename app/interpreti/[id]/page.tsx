@@ -7,7 +7,7 @@ import ZdrojeSekce from "@/components/ZdrojeSekce";
 import VazbySekce from "@/components/VazbySekce";
 import HistorieSekce from "@/components/HistorieSekce";
 import { upravitInterpreta, pridatClenstvi } from "@/lib/actions/interpreti";
-import { nazevObjektu } from "@/lib/actions/spolecne";
+import { najdiVazby } from "@/lib/actions/spolecne";
 
 export default async function InterpretDetail({ params }: { params: { id: string } }) {
   const interpret = await prisma.interpret.findUnique({
@@ -22,16 +22,16 @@ export default async function InterpretDetail({ params }: { params: { id: string
 
   const cesta = `/interpreti/${interpret.id}`;
 
-  const [zdroje, vazbyRaw, historie, pribehyVazby] = await Promise.all([
+  const [zdroje, vazby, historie, pribehyVazby, udalosti] = await Promise.all([
     prisma.zdroj.findMany({ where: { cilovyTyp: "Interpret", cilovyId: interpret.id }, orderBy: { createdAt: "desc" } }),
-    prisma.vazba.findMany({ where: { zdrojovyTyp: "Interpret", zdrojovyId: interpret.id }, orderBy: { createdAt: "desc" } }),
+    najdiVazby("Interpret", interpret.id),
     prisma.historieZmeny.findMany({ where: { entitaTyp: "Interpret", entitaId: interpret.id }, orderBy: { createdAt: "desc" }, take: 20 }),
     prisma.vazba.findMany({ where: { zdrojovyTyp: "Pribeh", cilovyTyp: "Interpret", cilovyId: interpret.id } }),
+    // Události zatím nemají formální vazbu na interpreta v datovém modelu -
+    // dohledáváme je stejně jako veřejné API (shoda v názvu).
+    prisma.udalost.findMany({ where: { nazev: { contains: interpret.nazev, mode: "insensitive" } }, orderBy: { datum: "asc" } }),
   ]);
   const pribehy = await prisma.pribeh.findMany({ where: { id: { in: pribehyVazby.map((v) => v.zdrojovyId) } }, orderBy: { updatedAt: "desc" } });
-  const vazby = await Promise.all(
-    vazbyRaw.map(async (v) => ({ ...v, cilovyNazev: await nazevObjektu(v.cilovyTyp, v.cilovyId) }))
-  );
 
   return (
     <div className="space-y-6">
@@ -137,6 +137,20 @@ export default async function InterpretDetail({ params }: { params: { id: string
                   <li key={p.id} className="flex items-center justify-between gap-3 text-sm border-b border-line/60 pb-2 last:border-0">
                     <Link href={`/pribehy/${p.id}`} className="text-paper hover:text-accent">{p.nadpis}</Link>
                     <StatusBadge stav={p.stav} />
+                  </li>
+                ))}
+              </ul>
+            </IndexCard>
+          )}
+
+          {udalosti.length > 0 && (
+            <IndexCard label={`Události (${udalosti.length})`}>
+              <ul className="space-y-2">
+                {udalosti.map((u) => (
+                  <li key={u.id} className="flex items-center justify-between gap-3 text-sm border-b border-line/60 pb-2 last:border-0">
+                    <Link href={`/udalosti/${u.id}`} className="text-paper hover:text-accent">
+                      {u.nazev} <span className="text-muted font-mono text-xs">· {u.datum}</span>
+                    </Link>
                   </li>
                 ))}
               </ul>

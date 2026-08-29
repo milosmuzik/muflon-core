@@ -7,22 +7,19 @@ import ZdrojeSekce from "@/components/ZdrojeSekce";
 import VazbySekce from "@/components/VazbySekce";
 import HistorieSekce from "@/components/HistorieSekce";
 import { upravitPribeh } from "@/lib/actions/pribehy";
-import { nazevObjektu, posunoutStav } from "@/lib/actions/spolecne";
-import { DALSI_STAV, STAV_LABEL } from "@/lib/constants";
+import { najdiVazby } from "@/lib/actions/spolecne";
 
 export default async function PribehDetail({ params }: { params: { id: string } }) {
   const pribeh = await prisma.pribeh.findUnique({ where: { id: params.id } });
   if (!pribeh) notFound();
 
   const cesta = `/pribehy/${pribeh.id}`;
-  const [zdroje, vazbyRaw, historie] = await Promise.all([
+  const [zdroje, vazby, historie] = await Promise.all([
     prisma.zdroj.findMany({ where: { cilovyTyp: "Pribeh", cilovyId: pribeh.id }, orderBy: { createdAt: "desc" } }),
-    prisma.vazba.findMany({ where: { zdrojovyTyp: "Pribeh", zdrojovyId: pribeh.id }, orderBy: { createdAt: "desc" } }),
+    najdiVazby("Pribeh", pribeh.id),
     prisma.historieZmeny.findMany({ where: { entitaTyp: "Pribeh", entitaId: pribeh.id }, orderBy: { createdAt: "desc" }, take: 20 }),
   ]);
-  const vazby = await Promise.all(vazbyRaw.map(async (v) => ({ ...v, cilovyNazev: await nazevObjektu(v.cilovyTyp, v.cilovyId) })));
 
-  const dalsiStav = DALSI_STAV[pribeh.stav];
   const bezZdroje = zdroje.length === 0;
 
   return (
@@ -54,26 +51,6 @@ export default async function PribehDetail({ params }: { params: { id: string } 
         </div>
 
         <div className="space-y-5">
-          <IndexCard label="Redakční workflow">
-            <p className="text-muted text-sm mb-3">Aktuální stav: <StatusBadge stav={pribeh.stav} /></p>
-            {dalsiStav ? (
-              bezZdroje ? (
-                <p className="text-rust text-xs">
-                  Nejdřív přidej aspoň jeden zdroj – bez něj stav nejde posunout dál.
-                </p>
-              ) : (
-                <form action={posunoutStav.bind(null, "pribeh", pribeh.id, pribeh.stav, cesta)}>
-                  <button className="w-full bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring text-sm">
-                    Posunout na „{STAV_LABEL[dalsiStav]}“
-                  </button>
-                </form>
-              )
-            ) : (
-              <p className="text-muted text-xs">Konečný stav dosažen.</p>
-            )}
-            <p className="text-muted text-xs mt-3">Konečné rozhodnutí o zveřejnění vždy zůstává na redaktorovi.</p>
-          </IndexCard>
-
           <IndexCard label="Upravit text">
             <form action={upravitPribeh.bind(null, pribeh.id)} className="space-y-2 text-sm">
               <input name="nadpis" defaultValue={pribeh.nadpis} className="w-full bg-ink border border-line rounded-sm px-2 py-1.5 text-paper focus-ring" />

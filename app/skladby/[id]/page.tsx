@@ -6,7 +6,7 @@ import ZdrojeSekce from "@/components/ZdrojeSekce";
 import VazbySekce from "@/components/VazbySekce";
 import HistorieSekce from "@/components/HistorieSekce";
 import { upravitSkladbu } from "@/lib/actions/skladby";
-import { nazevObjektu } from "@/lib/actions/spolecne";
+import { najdiVazby } from "@/lib/actions/spolecne";
 
 export default async function SkladbaDetail({ params }: { params: { id: string } }) {
   const skladba = await prisma.skladba.findUnique({
@@ -16,12 +16,11 @@ export default async function SkladbaDetail({ params }: { params: { id: string }
   if (!skladba) notFound();
 
   const cesta = `/skladby/${skladba.id}`;
-  const [zdroje, vazbyRaw, historie] = await Promise.all([
+  const [zdroje, vazby, historie] = await Promise.all([
     prisma.zdroj.findMany({ where: { cilovyTyp: "Skladba", cilovyId: skladba.id }, orderBy: { createdAt: "desc" } }),
-    prisma.vazba.findMany({ where: { zdrojovyTyp: "Skladba", zdrojovyId: skladba.id }, orderBy: { createdAt: "desc" } }),
+    najdiVazby("Skladba", skladba.id),
     prisma.historieZmeny.findMany({ where: { entitaTyp: "Skladba", entitaId: skladba.id }, orderBy: { createdAt: "desc" }, take: 20 }),
   ]);
-  const vazby = await Promise.all(vazbyRaw.map(async (v) => ({ ...v, cilovyNazev: await nazevObjektu(v.cilovyTyp, v.cilovyId) })));
 
   return (
     <div className="space-y-6">
