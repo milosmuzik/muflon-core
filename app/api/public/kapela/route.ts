@@ -8,8 +8,12 @@
 // GET /api/public/kapela?jmeno=<nazev interpreta>
 //
 // Response:
-// { "nalezena": true, "nazev": "...", "kratkyPribeh": "..." }
+// { "nalezena": true, "nazev": "...", "pribehy": [{ "nadpis": "...", "obsah": "..." }], "kratkyPribeh": "..." }
 // { "nalezena": false }
+//
+// "pribehy" nese CELÝ text schválených příběhů (bez zkracování) - tohle
+// pole čte web Rádia Muflon. "kratkyPribeh" je starší, zkrácené pole
+// ponechané pro zpětnou kompatibilitu.
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -62,18 +66,15 @@ async function najdiInterpreta(jmeno: string) {
   });
 }
 
-async function najdiKratkyPribeh(interpretId: string): Promise<string | null> {
+async function najdiVerejnePribehy(interpretId: string) {
   const vazby = await prisma.vazba.findMany({
     where: { zdrojovyTyp: "Pribeh", cilovyTyp: "Interpret", cilovyId: interpretId },
   });
-  if (vazby.length > 0) {
-    const pribehy = await prisma.pribeh.findMany({
-      where: { id: { in: vazby.map((v) => v.zdrojovyId) }, stav: { in: VEREJNE_STAVY_PRIBEHU } },
-      orderBy: { updatedAt: "desc" },
-    });
-    if (pribehy.length > 0) return zkratit(pribehy[0].obsah, MAX_DELKA_PRIBEHU);
-  }
-  return null;
+  if (vazby.length === 0) return [];
+  return prisma.pribeh.findMany({
+    where: { id: { in: vazby.map((v) => v.zdrojovyId) }, stav: { in: VEREJNE_STAVY_PRIBEHU } },
+    orderBy: { updatedAt: "desc" },
+  });
 }
 
 export async function OPTIONS() {
@@ -94,12 +95,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ nalezena: false }, { headers: CORS_HEADERS });
   }
 
-  const kratkyPribeh =
-    (await najdiKratkyPribeh(interpret.id)) ??
-    (interpret.historie ? zkratit(interpret.historie, MAX_DELKA_PRIBEHU) : null);
+  const pribehy = await najdiVerejnePribehy(interpret.id);
+  const kratkyPribeh = pribehy.length > 0
+    ? zkratit(pribehy[0].obsah, MAX_DELKA_PRIBEHU)
+    : (interpret.historie ? zkratit(interpret.historie, MAX_DELKA_PRIBEHU) : null);
 
   return NextResponse.json(
-    { nalezena: true, nazev: interpret.nazev, kratkyPribeh: kratkyPribeh ?? "" },
+    {
+      nalezena: true,
+      nazev: interpret.nazev,
+      pribehy: pribehy.map((p) => ({ nadpis: p.nadpis, obsah: p.obsah })),
+      kratkyPribeh: kratkyPribeh ?? "",
+    },
     {
       headers: {
         ...CORS_HEADERS,
