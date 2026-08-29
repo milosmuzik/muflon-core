@@ -113,8 +113,10 @@ export async function importovatKartu(_predchoziStav: VysledekImportu, formData:
     if (!u.nazev || !u.datum) continue;
     const existuje = await prisma.udalost.findFirst({ where: { nazev: u.nazev } });
     if (!existuje) {
+      // stav zůstává na výchozím "navrh" – karta zatím nemá zdroj přiřazený
+      // konkrétně k téhle události (viz komentář u pribehy níže).
       await prisma.udalost.create({
-        data: { nazev: u.nazev, datum: u.datum, typ: PLATNE_TYPY_UDALOSTI.has(u.typ) ? u.typ : "jina", opakujeSe: true, popis: u.popis, stav: "overeno" },
+        data: { nazev: u.nazev, datum: u.datum, typ: PLATNE_TYPY_UDALOSTI.has(u.typ) ? u.typ : "jina", opakujeSe: true, popis: u.popis },
       });
       noveUdalosti++;
     }
@@ -125,7 +127,10 @@ export async function importovatKartu(_predchoziStav: VysledekImportu, formData:
     if (!p.nadpis || !p.obsah) continue;
     let pribeh = await prisma.pribeh.findFirst({ where: { nadpis: p.nadpis } });
     if (!pribeh) {
-      pribeh = await prisma.pribeh.create({ data: { nadpis: p.nadpis, obsah: p.obsah, stav: "overeno" } });
+      // stav zůstává na výchozím "navrh": zdroje z karty (karta.zdroje) se
+      // vážou jen k interpretovi, ne ke konkrétnímu příběhu, takže tenhle
+      // příběh sám o sobě zatím žádný zdroj nemá (kap. 4.4 Ověřitelnost).
+      pribeh = await prisma.pribeh.create({ data: { nadpis: p.nadpis, obsah: p.obsah } });
       novePribehy++;
     }
     const existujeVazba = await prisma.vazba.findFirst({
