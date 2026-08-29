@@ -90,3 +90,13 @@ export function urovenDuveryZKategorie(kategorie: string): string {
   if (priorita <= 7) return "nizka";
   return "neoverene";
 }
+
+// Od téhle úrovně důvěry (a výš) se událost schvaluje automaticky, bez
+// ručního ověření – viz DALSI_STAV workflow (navrh -> overeno -> schvaleno).
+export const AUTOSCHVALENI_OD_UROVNE = urovenDuveryPriorita("stredni");
+
+// Poznámky, kterými si zdroje vytvořené AI agentem značí svůj původ –
+// podle nich jde poznat "napevno" dosazenou důvěru od té, co ručně
+// zvolil člověk ve formuláři ZdrojeSekce, a bezpečně ji přepočítat.
+export const POZNAMKA_AI_NAVRH_KALENDAR = "Navrženo AI agentem – doporučeno ověřit před zveřejněním.";
+export const POZNAMKA_AI_ROZSIRENI = "Doplněno přes „Zjisti více“.";

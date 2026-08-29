@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
-import { urovenDuveryPriorita, urovenDuveryZKategorie } from "@/lib/constants";
-
-// Od téhle úrovně důvěry (a výš) se událost schvaluje automaticky, bez
-// ručního ověření – viz DALSI_STAV workflow (navrh -> overeno -> schvaleno).
-const AUTOSCHVALENI_OD_UROVNE = urovenDuveryPriorita("stredni");
+import {
+  AUTOSCHVALENI_OD_UROVNE,
+  POZNAMKA_AI_NAVRH_KALENDAR,
+  urovenDuveryPriorita,
+  urovenDuveryZKategorie,
+} from "@/lib/constants";
 
 const GEMINI_MODEL = "gemini-flash-lite-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -143,7 +144,7 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
               url: zdroj.url,
               kategorie,
               uroverDuvery,
-              poznamka: "Navrženo AI agentem – doporučeno ověřit před zveřejněním.",
+              poznamka: POZNAMKA_AI_NAVRH_KALENDAR,
             },
           });
         }
