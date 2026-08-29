@@ -3,12 +3,22 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { vygenerovatNavrhyKalendare, type VysledekAgenta } from "@/lib/agent/navrhy-kalendar";
+import { revidovatUdalosti, type VysledekRevize } from "@/lib/agent/revize-udalosti";
 
 export async function spustitAgentaRucne(
   _predchoziStav: VysledekAgenta,
   _formData: FormData
 ): Promise<VysledekAgenta> {
   const vysledek = await vygenerovatNavrhyKalendare(7);
+  revalidatePath("/udalosti");
+  return vysledek;
+}
+
+export async function spustitReviziRucne(
+  _predchoziStav: VysledekRevize,
+  _formData: FormData
+): Promise<VysledekRevize> {
+  const vysledek = await revidovatUdalosti();
   revalidatePath("/udalosti");
   return vysledek;
 }
