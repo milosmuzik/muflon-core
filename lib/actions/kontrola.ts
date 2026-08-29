@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
 import { revalidatePath } from "next/cache";
+import { dohledatChybejiciZdroje, type VysledekDohledani } from "@/lib/agent/dohledat-zdroje-hromadne";
 
 // Vrátí příběhy a události, které mají stav dál než "návrh" (tedy se tváří
 // jako ověřené/schválené/publikované), ale nemají v databázi žádný zdroj –
@@ -31,4 +32,15 @@ export async function vratitBezZdrojeNaNavrh() {
   revalidatePath("/kontrola");
   revalidatePath("/pribehy");
   revalidatePath("/udalosti");
+}
+
+export async function spustitDohledaniRucne(
+  _predchoziStav: VysledekDohledani,
+  _formData: FormData
+): Promise<VysledekDohledani> {
+  const vysledek = await dohledatChybejiciZdroje();
+  revalidatePath("/kontrola");
+  revalidatePath("/pribehy");
+  revalidatePath("/udalosti");
+  return vysledek;
 }

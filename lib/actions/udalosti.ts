@@ -5,7 +5,8 @@ import { zapisHistorii } from "@/lib/history";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { zjistiVice } from "@/lib/agent/zjisti-vice";
-import { POZNAMKA_AI_ROZSIRENI, urovenDuveryZKategorie } from "@/lib/constants";
+import { POZNAMKA_AI_ROZSIRENI, urovenDuveryZeZdroje } from "@/lib/constants";
+import { zvazAutomatickeSchvaleni } from "@/lib/actions/spolecne";
 
 const PLATNE_KATEGORIE = new Set(["oficialni_web", "socialni_site", "archivni", "databaze", "media", "rozhovor", "kniha", "orientacni"]);
 
@@ -24,13 +25,15 @@ export async function rozsiritUdalost(id: string) {
     const existuje = await prisma.zdroj.findFirst({ where: { cilovyTyp: "Udalost", cilovyId: id, url: z.url } });
     if (!existuje) {
       const kategorie = PLATNE_KATEGORIE.has(z.kategorie) ? z.kategorie : "orientacni";
+      const uroverDuvery = urovenDuveryZeZdroje(kategorie, z.url);
       await prisma.zdroj.create({
         data: {
           cilovyTyp: "Udalost", cilovyId: id, nazev: z.nazev, url: z.url,
           kategorie,
-          uroverDuvery: urovenDuveryZKategorie(kategorie), poznamka: POZNAMKA_AI_ROZSIRENI,
+          uroverDuvery, poznamka: POZNAMKA_AI_ROZSIRENI,
         },
       });
+      await zvazAutomatickeSchvaleni("Udalost", id, uroverDuvery);
     }
   }
 

@@ -48,7 +48,7 @@ export default async function UdalostiPage({ searchParams }: { searchParams: { f
       <IndexCard label="Revize existujících událostí podle důvěry zdrojů">
         <p className="text-muted text-sm mb-3">
           Projede všechny čekající události (návrh/ověřeno), přepočítá důvěru u zdrojů založených AI agentem podle
-          jejich kategorie a rovnou schválí ty, které mají zdroj se střední nebo vyšší důvěrou.
+          jejich kategorie a rovnou schválí ty, které mají zdroj s dostatečnou důvěrou (oficiální kanál nebo renomované médium).
         </p>
         <RevizeTlacitko />
       </IndexCard>

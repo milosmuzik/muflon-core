@@ -5,7 +5,7 @@ import {
   POZNAMKA_AI_NAVRH_KALENDAR,
   POZNAMKA_AI_ROZSIRENI,
   urovenDuveryPriorita,
-  urovenDuveryZKategorie,
+  urovenDuveryZeZdroje,
 } from "@/lib/constants";
 
 export type VysledekRevize = {
@@ -15,10 +15,10 @@ export type VysledekRevize = {
 };
 
 // Projde VŠECHNY existující události (ne jen nově navržené) a:
-// 1) u zdrojů založených AI agentem přepočítá důvěru podle kategorie
+// 1) u zdrojů založených AI agentem přepočítá důvěru podle kategorie a URL
 //    (dřív se všem napevno dosazovala "střední" bez ohledu na kvalitu zdroje),
-// 2) události ve stavu návrh/ověřeno, které mají aspoň jeden zdroj se
-//    střední nebo vyšší důvěrou, rovnou schválí.
+// 2) události ve stavu návrh/ověřeno, které mají aspoň jeden zdroj s
+//    dostatečnou důvěrou, rovnou schválí.
 // Ruční zdroje přidané člověkem přes ZdrojeSekce se nepřepisují – jejich
 // úroveň důvěry je editorské rozhodnutí, ne odhad.
 export async function revidovatUdalosti(): Promise<VysledekRevize> {
@@ -31,7 +31,7 @@ export async function revidovatUdalosti(): Promise<VysledekRevize> {
 
   let opravenoZdroju = 0;
   for (const zdroj of aiZdroje) {
-    const spravnaUroven = urovenDuveryZKategorie(zdroj.kategorie);
+    const spravnaUroven = urovenDuveryZeZdroje(zdroj.kategorie, zdroj.url);
     if (spravnaUroven !== zdroj.uroverDuvery) {
       await prisma.zdroj.update({ where: { id: zdroj.id }, data: { uroverDuvery: spravnaUroven } });
       opravenoZdroju++;
@@ -50,7 +50,7 @@ export async function revidovatUdalosti(): Promise<VysledekRevize> {
         "Udalost",
         udalost.id,
         "zmena_stavu",
-        "Automaticky schváleno při hromadné revizi – zdroj se střední nebo vyšší důvěrou"
+        "Automaticky schváleno při hromadné revizi – zdroj s dostatečnou důvěrou"
       );
       schvalenoNove++;
     }
