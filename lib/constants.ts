@@ -133,6 +133,12 @@ export const RENOMOVANE_ZDROJE_DOMENY = [
   "gaffa.dk", // od 1983, nejstarší skandinávský hudební magazín (DK/SE/NO)
   "impe.fi", // Imperiumi, finské metalové médium od 2002
   "heavymetal.no", // norský metalový webzín
+  // Německo, Francie, Itálie, Španělsko, Polsko.
+  "legacy.de", // Legacy Magazine, od 1999
+  "rockhard.fr", // francouzská edice Rock Hard, od 2001
+  "metalhammer.it", // italská edice Metal Hammer, od 2015
+  "mariskalrock.com", // La Heavy, od 1982
+  "rockmetal.pl", // od 1996, první hudební portál v Polsku
 ];
 
 function jeRenomovanyZdroj(url: string | null): boolean {
@@ -190,6 +196,11 @@ const ZNAME_NAZVY_DOMEN: Record<string, string> = {
   "gaffa.dk": "GAFFA",
   "impe.fi": "Imperiumi",
   "heavymetal.no": "Heavymetal.no",
+  "legacy.de": "Legacy Magazine",
+  "rockhard.fr": "Rock Hard France",
+  "metalhammer.it": "Metal Hammer Italia",
+  "mariskalrock.com": "La Heavy",
+  "rockmetal.pl": "Rockmetal.pl",
   "wikipedia.org": "Wikipedia",
   "youtube.com": "YouTube",
   "bandcamp.com": "Bandcamp",
