@@ -156,6 +156,7 @@ export const AUTOSCHVALENI_OD_UROVNE = urovenDuveryPriorita("vysoka");
 // zvolil člověk ve formuláři ZdrojeSekce, a bezpečně ji přepočítat.
 export const POZNAMKA_AI_NAVRH_KALENDAR = "Navrženo AI agentem – doporučeno ověřit před zveřejněním.";
 export const POZNAMKA_AI_ROZSIRENI = "Doplněno přes „Zjisti více“.";
+export const POZNAMKA_DOHLEDANO = "Dohledáno AI fact-checkerem – oficiální kanál nebo renomované médium.";
 
 // Stejný účel jako výše, ale pro dávkový import sestav z MusicBrainz
 // (prisma/enrich-hudebnici.ts) – podle poznámky na Clenstvi jde na

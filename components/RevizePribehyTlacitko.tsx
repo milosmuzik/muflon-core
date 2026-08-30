@@ -3,7 +3,7 @@
 import { useFormState, useFormStatus } from "react-dom";
 import { spustitReviziPribehuRucne } from "@/lib/actions/pribehy";
 
-const pocatecniStav = { zkontrolovanoPribehu: 0, schvalenoNove: 0 };
+const pocatecniStav = { opravenoZdroju: 0, zkontrolovanoPribehu: 0, schvalenoNove: 0 };
 
 function TlacitkoOdeslat() {
   const { pending } = useFormStatus();
@@ -25,9 +25,10 @@ export default function RevizePribehyTlacitko() {
       <form action={formAction}>
         <TlacitkoOdeslat />
       </form>
-      {stav.zkontrolovanoPribehu > 0 && (
+      {(stav.zkontrolovanoPribehu > 0 || stav.opravenoZdroju > 0) && (
         <p className="mt-3 text-sm text-paper">
-          Zkontrolováno čekajících příběhů: {stav.zkontrolovanoPribehu} · Nově schváleno: {stav.schvalenoNove}
+          Zkontrolováno čekajících příběhů: {stav.zkontrolovanoPribehu} · Nově schváleno: {stav.schvalenoNove} ·
+          Opraveno zdrojů: {stav.opravenoZdroju}
         </p>
       )}
     </div>
