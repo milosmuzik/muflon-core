@@ -5,6 +5,7 @@ import { zapisHistorii } from "@/lib/history";
 import { revalidatePath } from "next/cache";
 import { dohledatChybejiciZdroje, type VysledekDohledani } from "@/lib/agent/dohledat-zdroje-hromadne";
 import { revidovatVse, type VysledekRevizeVse } from "@/lib/agent/revize-vse";
+import { smazatNekvalifikovane, type VysledekUklidu } from "@/lib/agent/uklid";
 
 // Vrátí příběhy a události, které mají stav dál než "návrh" (tedy se tváří
 // jako ověřené/schválené/publikované), ale nemají v databázi žádný zdroj –
@@ -68,4 +69,17 @@ export async function spustitReviziVseRucne(
     posledniId: davka.posledniId,
     hotovo: davka.hotovo,
   };
+}
+
+// Nevratné, jednorázové smazání příběhů a událostí, které i po plné revizi
+// (viz výše) zůstaly bez dostatečně důvěryhodného zdroje - viz lib/agent/uklid.ts.
+export async function spustitUklidRucne(
+  _predchoziStav: VysledekUklidu,
+  _formData: FormData
+): Promise<VysledekUklidu> {
+  const vysledek = await smazatNekvalifikovane();
+  revalidatePath("/kontrola");
+  revalidatePath("/pribehy");
+  revalidatePath("/udalosti");
+  return vysledek;
 }
