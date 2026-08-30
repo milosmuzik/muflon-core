@@ -121,6 +121,12 @@ export const RENOMOVANE_ZDROJE_DOMENY = [
   "everythingisnoise.net",
   "themetalvoice.com",
   "thecurrent.org", // Minnesota Public Radio
+  // Mimo severoamerický/evropský okruh - Japonsko a Jižní Amerika.
+  "roadiecrew.com", // brazilský rock/metal magazín, od 1997
+  "whiplash.net", // brazilský rock/metal web, od 1996
+  "natalie.mu", // japonský hudební zpravodajský web, od 2007
+  "barks.jp", // přední japonské hudební médium, od 2001
+  "rockinon.com", // Rockin'on, japonský hudební vydavatel od 1972
 ];
 
 function jeRenomovanyZdroj(url: string | null): boolean {
@@ -168,6 +174,11 @@ const ZNAME_NAZVY_DOMEN: Record<string, string> = {
   "everythingisnoise.net": "Everything Is Noise",
   "themetalvoice.com": "The Metal Voice",
   "thecurrent.org": "The Current (Minnesota Public Radio)",
+  "roadiecrew.com": "Roadie Crew",
+  "whiplash.net": "Whiplash.Net",
+  "natalie.mu": "Natalie",
+  "barks.jp": "BARKS",
+  "rockinon.com": "Rockin'on",
   "wikipedia.org": "Wikipedia",
   "youtube.com": "YouTube",
   "bandcamp.com": "Bandcamp",
