@@ -1,17 +1,39 @@
 import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
-import { AUTOSCHVALENI_OD_UROVNE, urovenDuveryPriorita } from "@/lib/constants";
+import { AUTOSCHVALENI_OD_UROVNE, POZNAMKA_DOHLEDANO, urovenDuveryPriorita, urovenDuveryZeZdroje } from "@/lib/constants";
+import { rozbalRedirect } from "./redirect";
 
 export type VysledekReviziPribehu = {
+  opravenoZdroju: number;
   zkontrolovanoPribehu: number;
   schvalenoNove: number;
 };
 
-// Projde všechny čekající příběhy (návrh/ověřeno) a ty, které mají aspoň
-// jeden zdroj s dostatečnou důvěrou (oficiální kanál nebo renomované médium), rovnou schválí. Na rozdíl od
-// revize událostí tu nejsou žádné AI-generované zdroje k přepočítání –
-// příběhy zatím vznikají jen ručně, se zdroji zadanými přímo editorem.
+// Projde všechny čekající příběhy (návrh/ověřeno) a:
+// 1) u zdrojů dohledaných AI fact-checkerem přepočítá důvěru podle
+//    kategorie a (rozbalené) URL - stejný důvod jako u revize událostí,
+//    Gemini google_search vrací Google redirect místo skutečné adresy.
+// 2) ty, které mají aspoň jeden zdroj s dostatečnou důvěrou, rovnou schválí.
+// Ruční zdroje přidané člověkem přes ZdrojeSekce se nepřepisují – jejich
+// úroveň důvěry je editorské rozhodnutí, ne odhad.
 export async function revidovatPribehy(): Promise<VysledekReviziPribehu> {
+  const aiZdroje = await prisma.zdroj.findMany({
+    where: { cilovyTyp: "Pribeh", poznamka: POZNAMKA_DOHLEDANO },
+  });
+
+  let opravenoZdroju = 0;
+  for (const zdroj of aiZdroje) {
+    const skutecnaUrl = zdroj.url ? await rozbalRedirect(zdroj.url) : zdroj.url;
+    const spravnaUroven = urovenDuveryZeZdroje(zdroj.kategorie, skutecnaUrl);
+    if (spravnaUroven !== zdroj.uroverDuvery || skutecnaUrl !== zdroj.url) {
+      await prisma.zdroj.update({
+        where: { id: zdroj.id },
+        data: { uroverDuvery: spravnaUroven, url: skutecnaUrl },
+      });
+      opravenoZdroju++;
+    }
+  }
+
   const cekajici = await prisma.pribeh.findMany({ where: { stav: { in: ["navrh", "overeno"] } } });
 
   let schvalenoNove = 0;
@@ -30,5 +52,5 @@ export async function revidovatPribehy(): Promise<VysledekReviziPribehu> {
     }
   }
 
-  return { zkontrolovanoPribehu: cekajici.length, schvalenoNove };
+  return { opravenoZdroju, zkontrolovanoPribehu: cekajici.length, schvalenoNove };
 }

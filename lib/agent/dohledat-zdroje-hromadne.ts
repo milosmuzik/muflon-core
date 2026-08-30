@@ -1,10 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
-import { urovenDuveryZeZdroje } from "@/lib/constants";
+import { urovenDuveryZeZdroje, POZNAMKA_DOHLEDANO } from "@/lib/constants";
 import { zvazAutomatickeSchvaleni } from "@/lib/actions/spolecne";
 import { dohledatZdroj } from "@/lib/agent/dohledat-zdroj";
-
-const POZNAMKA_DOHLEDANO = "Dohledáno AI fact-checkerem – oficiální kanál nebo renomované médium.";
 
 export type VysledekDohledani = {
   zkontrolovano: number;

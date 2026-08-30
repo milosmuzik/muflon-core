@@ -4,9 +4,11 @@ import {
   AUTOSCHVALENI_OD_UROVNE,
   POZNAMKA_AI_NAVRH_KALENDAR,
   POZNAMKA_AI_ROZSIRENI,
+  POZNAMKA_DOHLEDANO,
   urovenDuveryPriorita,
   urovenDuveryZeZdroje,
 } from "@/lib/constants";
+import { rozbalRedirect } from "./redirect";
 
 export type VysledekRevize = {
   opravenoZdroju: number;
@@ -25,15 +27,22 @@ export async function revidovatUdalosti(): Promise<VysledekRevize> {
   const aiZdroje = await prisma.zdroj.findMany({
     where: {
       cilovyTyp: "Udalost",
-      poznamka: { in: [POZNAMKA_AI_NAVRH_KALENDAR, POZNAMKA_AI_ROZSIRENI] },
+      poznamka: { in: [POZNAMKA_AI_NAVRH_KALENDAR, POZNAMKA_AI_ROZSIRENI, POZNAMKA_DOHLEDANO] },
     },
   });
 
   let opravenoZdroju = 0;
   for (const zdroj of aiZdroje) {
-    const spravnaUroven = urovenDuveryZeZdroje(zdroj.kategorie, zdroj.url);
-    if (spravnaUroven !== zdroj.uroverDuvery) {
-      await prisma.zdroj.update({ where: { id: zdroj.id }, data: { uroverDuvery: spravnaUroven } });
+    // Zdroje z Gemini google_search mají URL uloženou jako Google redirect
+    // (vertexaisearch.cloud.google.com) - bez rozbalení by whitelist domén
+    // nikdy nenašel shodu, i kdyby zdroj citoval renomované médium.
+    const skutecnaUrl = zdroj.url ? await rozbalRedirect(zdroj.url) : zdroj.url;
+    const spravnaUroven = urovenDuveryZeZdroje(zdroj.kategorie, skutecnaUrl);
+    if (spravnaUroven !== zdroj.uroverDuvery || skutecnaUrl !== zdroj.url) {
+      await prisma.zdroj.update({
+        where: { id: zdroj.id },
+        data: { uroverDuvery: spravnaUroven, url: skutecnaUrl },
+      });
       opravenoZdroju++;
     }
   }
