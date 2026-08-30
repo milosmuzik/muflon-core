@@ -3,6 +3,7 @@ import { zapisHistorii } from "@/lib/history";
 import {
   AUTOSCHVALENI_OD_UROVNE,
   POZNAMKA_AI_NAVRH_KALENDAR,
+  nazevZeZdroje,
   urovenDuveryPriorita,
   urovenDuveryZeZdroje,
 } from "@/lib/constants";
@@ -142,7 +143,7 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
             data: {
               cilovyTyp: "Udalost",
               cilovyId: novaUdalost.id,
-              nazev: zdroj.nazev || "Zdroj",
+              nazev: nazevZeZdroje(skutecnaUrl, zdroj.nazev || "Zdroj"),
               url: skutecnaUrl,
               kategorie,
               uroverDuvery,

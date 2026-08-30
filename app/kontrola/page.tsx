@@ -4,8 +4,14 @@ import Link from "next/link";
 import { sloucitSkupinu } from "@/lib/actions/slouceni";
 import { vratitBezZdrojeNaNavrh } from "@/lib/actions/kontrola";
 import DohledatZdrojeTlacitko from "@/components/DohledatZdrojeTlacitko";
-import OpravitRedirectyTlacitko from "@/components/OpravitRedirectyTlacitko";
-import { POZNAMKA_MB_CLENSTVI, STAV_LABEL } from "@/lib/constants";
+import RevizeVseTlacitko from "@/components/RevizeVseTlacitko";
+import {
+  POZNAMKA_MB_CLENSTVI,
+  POZNAMKA_AI_NAVRH_KALENDAR,
+  POZNAMKA_AI_ROZSIRENI,
+  POZNAMKA_DOHLEDANO,
+  STAV_LABEL,
+} from "@/lib/constants";
 
 export const maxDuration = 60;
 
@@ -20,7 +26,7 @@ export default async function KontrolaPage() {
     udalostiNeoverene,
     udalostiVsechny,
     udalostiZdroje,
-    pocetGoogleRedirectu,
+    pocetAiZdroju,
   ] = await Promise.all([
     prisma.interpret.findMany({
       orderBy: { createdAt: "asc" },
@@ -34,7 +40,12 @@ export default async function KontrolaPage() {
     prisma.udalost.findMany({ where: { zdrojAI: false, stav: "navrh" }, orderBy: { createdAt: "asc" } }),
     prisma.udalost.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.zdroj.findMany({ where: { cilovyTyp: "Udalost" }, select: { cilovyId: true } }),
-    prisma.zdroj.count({ where: { url: { contains: "vertexaisearch.cloud.google.com" } } }),
+    prisma.zdroj.count({
+      where: {
+        cilovyTyp: { in: ["Udalost", "Pribeh"] },
+        poznamka: { in: [POZNAMKA_AI_NAVRH_KALENDAR, POZNAMKA_AI_ROZSIRENI, POZNAMKA_DOHLEDANO] },
+      },
+    }),
   ]);
 
   const interpretIdSeZdrojem = new Set(vsechnyZdroje.map((z) => z.cilovyId));
@@ -243,13 +254,14 @@ export default async function KontrolaPage() {
         <DohledatZdrojeTlacitko />
       </IndexCard>
 
-      <IndexCard label={`🔗 Zdroje se špatnou URL – Google redirect místo skutečné adresy (${pocetGoogleRedirectu})`}>
+      <IndexCard label={`🔄 Revize databáze – zdroje od AI agentů (${pocetAiZdroju})`}>
         <p className="text-muted text-sm mb-3">
-          Gemini (google_search) vracel u zdrojů odkaz přes Google, ne přímo na server – whitelist renomovaných médií
-          proto nefungoval a takové zdroje spadly na „neověřené" bez ohledu na to, jak důvěryhodné médium citovaly.
-          Tlačítko rozbalí uložený redirect na skutečnou URL, přepočítá důvěru a případně rovnou schválí.
+          Jedno tlačítko pro všechno naráz, příběhy i události: rozbalí uložený Google redirect na skutečnou URL,
+          opraví zobrazovaný název zdroje podle skutečné domény (ne podle toho, co si AI vymyslela), přepočítá důvěru
+          a rovnou schválí, co teď má dostatečně důvěryhodný zdroj. Postupuje dávkami – klikej, dokud nenapíše
+          „Hotovo".
         </p>
-        <OpravitRedirectyTlacitko />
+        <RevizeVseTlacitko />
       </IndexCard>
 
       <IndexCard label={`📖 Příběhy bez zdroje (${pribehyBezZdroju.length})`}>

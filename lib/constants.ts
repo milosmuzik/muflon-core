@@ -125,6 +125,60 @@ function jeRenomovanyZdroj(url: string | null): boolean {
   return RENOMOVANE_ZDROJE_DOMENY.some((d) => host === d || host.endsWith(`.${d}`));
 }
 
+// Přátelské názvy pro doménu zdroje - používá se místo toho, co si AI agent
+// sám napsal jako "název zdroje". Gemini občas pojmenuje citaci jménem
+// média (Loudwire, Metal Hammer...), i když skutečná URL, na kterou se
+// grounding odkazuje, vede úplně jinam (např. na Wikipedii) - jméno podle
+// domény tohle znemožní, protože vychází z faktické adresy, ne z tvrzení AI.
+const ZNAME_NAZVY_DOMEN: Record<string, string> = {
+  "metal-archives.com": "Encyclopaedia Metallum: The Metal Archives",
+  "allmusic.com": "AllMusic",
+  "rateyourmusic.com": "Rate Your Music",
+  "metalstorm.net": "Metal Storm",
+  "decibelmagazine.com": "Decibel Magazine",
+  "bravewords.com": "BraveWords",
+  "kerrang.com": "Kerrang!",
+  "loudersound.com": "Louder (Metal Hammer / Classic Rock)",
+  "metalhammer.co.uk": "Metal Hammer",
+  "metal-hammer.de": "Metal Hammer DE",
+  "rockhard.de": "Rock Hard",
+  "bleeding4metal.de": "Bleeding4Metal",
+  "spark-rockmagazine.cz": "Spark Rock Magazine",
+  "rockandpop.cz": "Rock & Pop",
+  "burrn.online": "BURRN!",
+  "heavymag.com.au": "HEAVY Magazine",
+  "blabbermouth.net": "Blabbermouth.net",
+  "loudwire.com": "Loudwire",
+  "metalinjection.net": "Metal Injection",
+  "angrymetalguy.com": "Angry Metal Guy",
+  "revolvermag.com": "Revolver",
+  "wikipedia.org": "Wikipedia",
+  "youtube.com": "YouTube",
+  "bandcamp.com": "Bandcamp",
+  "discogs.com": "Discogs",
+  "musicbrainz.org": "MusicBrainz",
+  "facebook.com": "Facebook",
+  "instagram.com": "Instagram",
+  "x.com": "X (Twitter)",
+  "twitter.com": "X (Twitter)",
+};
+
+// Vrátí důvěryhodný název zdroje odvozený ze SKUTEČNÉ domény URL, ne z
+// toho, co si vygeneroval AI agent. Když URL nejde rozebrat, vrátí aspoň
+// původní název, ať záznam nezůstane bez popisku.
+export function nazevZeZdroje(url: string | null, puvodniNazev: string): string {
+  if (!url) return puvodniNazev;
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return puvodniNazev;
+  }
+  const znamy =
+    ZNAME_NAZVY_DOMEN[host] ?? Object.entries(ZNAME_NAZVY_DOMEN).find(([d]) => host.endsWith(`.${d}`))?.[1];
+  return znamy ?? host;
+}
+
 // Odvodí úroveň důvěry zdroje z jeho kategorie a URL (hierarchie zdrojů
 // výše + redakční whitelist médií/databází). Jako dostatečný zdroj pro
 // automatické schválení (vysoká důvěra) počítá jen oficiální web/sociální
