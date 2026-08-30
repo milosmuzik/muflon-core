@@ -1,3 +1,5 @@
+import { rozbalRedirect } from "./redirect";
+
 const GEMINI_MODEL = "gemini-flash-lite-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
@@ -40,7 +42,11 @@ Pokud nic nového ověřitelného nenajdeš, vrať {"rozsireni": "", "zdroje": [
   if (start === -1 || konec === -1) return { rozsireni: "", zdroje: [] };
 
   try {
-    return JSON.parse(ocistene.slice(start, konec + 1));
+    const vysledek: RozsireniVysledek = JSON.parse(ocistene.slice(start, konec + 1));
+    for (const zdroj of vysledek.zdroje || []) {
+      if (zdroj.url) zdroj.url = await rozbalRedirect(zdroj.url);
+    }
+    return vysledek;
   } catch {
     return { rozsireni: "", zdroje: [] };
   }
