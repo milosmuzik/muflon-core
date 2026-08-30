@@ -112,6 +112,15 @@ export const RENOMOVANE_ZDROJE_DOMENY = [
   "metalinjection.net",
   "angrymetalguy.com",
   "revolvermag.com",
+  // Doplněno na základě vzorku skutečných zdrojů, na které se po opravě
+  // Google redirectu (viz PR #20) rozbalily AI návrhy - ověřeno web searchem.
+  "ultimateclassicrock.com", // Townsquare Media
+  "thisdayinmusic.com", // zavedeno 1999, editor Neil Cossar
+  "metalassault.com", // metalový webzín, založen 2010
+  "fakker.cz", // český magazín propojený se Spark Rock Magazine
+  "everythingisnoise.net",
+  "themetalvoice.com",
+  "thecurrent.org", // Minnesota Public Radio
 ];
 
 function jeRenomovanyZdroj(url: string | null): boolean {
@@ -152,6 +161,13 @@ const ZNAME_NAZVY_DOMEN: Record<string, string> = {
   "metalinjection.net": "Metal Injection",
   "angrymetalguy.com": "Angry Metal Guy",
   "revolvermag.com": "Revolver",
+  "ultimateclassicrock.com": "Ultimate Classic Rock",
+  "thisdayinmusic.com": "This Day in Music",
+  "metalassault.com": "Metal Assault",
+  "fakker.cz": "Fakker!",
+  "everythingisnoise.net": "Everything Is Noise",
+  "themetalvoice.com": "The Metal Voice",
+  "thecurrent.org": "The Current (Minnesota Public Radio)",
   "wikipedia.org": "Wikipedia",
   "youtube.com": "YouTube",
   "bandcamp.com": "Bandcamp",
