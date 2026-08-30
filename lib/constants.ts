@@ -112,6 +112,33 @@ export const RENOMOVANE_ZDROJE_DOMENY = [
   "metalinjection.net",
   "angrymetalguy.com",
   "revolvermag.com",
+  // Doplněno na základě vzorku skutečných zdrojů, na které se po opravě
+  // Google redirectu (viz PR #20) rozbalily AI návrhy - ověřeno web searchem.
+  "ultimateclassicrock.com", // Townsquare Media
+  "thisdayinmusic.com", // zavedeno 1999, editor Neil Cossar
+  "metalassault.com", // metalový webzín, založen 2010
+  "fakker.cz", // český magazín propojený se Spark Rock Magazine
+  "everythingisnoise.net",
+  "themetalvoice.com",
+  "thecurrent.org", // Minnesota Public Radio
+  // Mimo severoamerický/evropský okruh - Japonsko a Jižní Amerika.
+  "roadiecrew.com", // brazilský rock/metal magazín, od 1997
+  "whiplash.net", // brazilský rock/metal web, od 1996
+  "natalie.mu", // japonský hudební zpravodajský web, od 2007
+  "barks.jp", // přední japonské hudební médium, od 2001
+  "rockinon.com", // Rockin'on, japonský hudební vydavatel od 1972
+  // Severní Evropa.
+  "swedenrock.com", // Sweden Rock Magazine, od 2001
+  "swedenrockmagazine.com",
+  "gaffa.dk", // od 1983, nejstarší skandinávský hudební magazín (DK/SE/NO)
+  "impe.fi", // Imperiumi, finské metalové médium od 2002
+  "heavymetal.no", // norský metalový webzín
+  // Německo, Francie, Itálie, Španělsko, Polsko.
+  "legacy.de", // Legacy Magazine, od 1999
+  "rockhard.fr", // francouzská edice Rock Hard, od 2001
+  "metalhammer.it", // italská edice Metal Hammer, od 2015
+  "mariskalrock.com", // La Heavy, od 1982
+  "rockmetal.pl", // od 1996, první hudební portál v Polsku
 ];
 
 function jeRenomovanyZdroj(url: string | null): boolean {
@@ -152,6 +179,28 @@ const ZNAME_NAZVY_DOMEN: Record<string, string> = {
   "metalinjection.net": "Metal Injection",
   "angrymetalguy.com": "Angry Metal Guy",
   "revolvermag.com": "Revolver",
+  "ultimateclassicrock.com": "Ultimate Classic Rock",
+  "thisdayinmusic.com": "This Day in Music",
+  "metalassault.com": "Metal Assault",
+  "fakker.cz": "Fakker!",
+  "everythingisnoise.net": "Everything Is Noise",
+  "themetalvoice.com": "The Metal Voice",
+  "thecurrent.org": "The Current (Minnesota Public Radio)",
+  "roadiecrew.com": "Roadie Crew",
+  "whiplash.net": "Whiplash.Net",
+  "natalie.mu": "Natalie",
+  "barks.jp": "BARKS",
+  "rockinon.com": "Rockin'on",
+  "swedenrock.com": "Sweden Rock Magazine",
+  "swedenrockmagazine.com": "Sweden Rock Magazine",
+  "gaffa.dk": "GAFFA",
+  "impe.fi": "Imperiumi",
+  "heavymetal.no": "Heavymetal.no",
+  "legacy.de": "Legacy Magazine",
+  "rockhard.fr": "Rock Hard France",
+  "metalhammer.it": "Metal Hammer Italia",
+  "mariskalrock.com": "La Heavy",
+  "rockmetal.pl": "Rockmetal.pl",
   "wikipedia.org": "Wikipedia",
   "youtube.com": "YouTube",
   "bandcamp.com": "Bandcamp",

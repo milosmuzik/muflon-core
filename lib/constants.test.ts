@@ -10,6 +10,11 @@ describe("urovenDuveryZeZdroje", () => {
     expect(urovenDuveryZeZdroje("databaze", "https://www.metal-archives.com/bands/x/1")).toBe("vysoka");
   });
 
+  it("dá vysokou důvěru nově doplněným médiím z whitelistu", () => {
+    expect(urovenDuveryZeZdroje("media", "https://ultimateclassicrock.com/some-article")).toBe("vysoka");
+    expect(urovenDuveryZeZdroje("media", "https://fakker.cz/clanek")).toBe("vysoka");
+  });
+
   it("nedá vysokou důvěru médiu mimo whitelist, i když je to skutečná URL", () => {
     expect(urovenDuveryZeZdroje("media", "https://en.wikipedia.org/wiki/Mercyful_Fate")).toBe("neoverene");
   });
