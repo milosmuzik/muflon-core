@@ -5,6 +5,7 @@ import { sloucitSkupinu } from "@/lib/actions/slouceni";
 import { vratitBezZdrojeNaNavrh } from "@/lib/actions/kontrola";
 import DohledatZdrojeTlacitko from "@/components/DohledatZdrojeTlacitko";
 import RevizeVseTlacitko from "@/components/RevizeVseTlacitko";
+import UklidTlacitko from "@/components/UklidTlacitko";
 import {
   POZNAMKA_MB_CLENSTVI,
   POZNAMKA_AI_NAVRH_KALENDAR,
@@ -262,6 +263,15 @@ export default async function KontrolaPage() {
           „Hotovo".
         </p>
         <RevizeVseTlacitko />
+      </IndexCard>
+
+      <IndexCard label="🗑 Nevratně smazat nekvalifikované">
+        <p className="text-muted text-sm mb-3">
+          Příběhy a události, které prošly revizí výše, ale zdroj od AI agenta stále nestačí na schválení. Nikdo je
+          ručně nereviduje, takže dál jen zabírají místo bez šance na schválení. Spustí se jednorázově celé, ne po
+          dávkách. <strong>Nevratné.</strong>
+        </p>
+        <UklidTlacitko />
       </IndexCard>
 
       <IndexCard label={`📖 Příběhy bez zdroje (${pribehyBezZdroju.length})`}>

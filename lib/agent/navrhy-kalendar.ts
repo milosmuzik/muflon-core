@@ -77,6 +77,7 @@ export type VysledekAgenta = {
   zpracovanoDni: number;
   navrzeno: number;
   preskoceno: number;
+  bezDostatecnehoZdroje: number;
   chyby: string[];
 };
 
@@ -88,6 +89,7 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
 
   let navrzeno = 0;
   let preskoceno = 0;
+  let bezDostatecnehoZdroje = 0;
   const chyby: string[] = [];
 
   console.log(`[agent] Start – zpracovávám ${pocetDni} dní dopředu.`);
@@ -119,19 +121,12 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
 
         const typ = ["vyroci_alba", "narozeniny", "umrti", "jina"].includes(polozka.typ) ? polozka.typ : "jina";
 
-        const novaUdalost = await prisma.udalost.create({
-          data: {
-            nazev: polozka.nazev.slice(0, 200),
-            typ,
-            datum: mmdd,
-            opakujeSe: true,
-            popis: polozka.popis ?? null,
-            stav: "navrh",
-            zdrojAI: true,
-            zverejnitNaSitich: false,
-          },
-        });
-
+        // Zdroje se vyhodnotí PŘED vytvořením záznamu (rozbalení Google
+        // redirectu + reálná URL, ne to, co si Gemini vymyslela). Pokud po
+        // téhle kontrole žádný nestačí na automatické schválení, záznam se
+        // vůbec nezakládá - jinak by se donekonečna hromadily položky bez
+        // šance na schválení, které stejně nikdo ručně nereviduje.
+        const vyhodnoceneZdroje: { nazev: string; url: string; kategorie: string; uroverDuvery: string }[] = [];
         let nejvyssiUroven = 0;
         for (const zdroj of polozka.zdroje.slice(0, 5)) {
           if (!zdroj.url) continue;
@@ -139,30 +134,53 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
           const kategorie = PLATNE_KATEGORIE.has(zdroj.kategorie) ? zdroj.kategorie : "orientacni";
           const uroverDuvery = urovenDuveryZeZdroje(kategorie, skutecnaUrl);
           nejvyssiUroven = Math.max(nejvyssiUroven, urovenDuveryPriorita(uroverDuvery));
+          vyhodnoceneZdroje.push({
+            nazev: nazevZeZdroje(skutecnaUrl, zdroj.nazev || "Zdroj"),
+            url: skutecnaUrl,
+            kategorie,
+            uroverDuvery,
+          });
+        }
+
+        if (nejvyssiUroven < AUTOSCHVALENI_OD_UROVNE) {
+          bezDostatecnehoZdroje++;
+          continue;
+        }
+
+        const novaUdalost = await prisma.udalost.create({
+          data: {
+            nazev: polozka.nazev.slice(0, 200),
+            typ,
+            datum: mmdd,
+            opakujeSe: true,
+            popis: polozka.popis ?? null,
+            stav: "schvaleno",
+            zdrojAI: true,
+            zverejnitNaSitich: false,
+          },
+        });
+
+        for (const zdroj of vyhodnoceneZdroje) {
           await prisma.zdroj.create({
             data: {
               cilovyTyp: "Udalost",
               cilovyId: novaUdalost.id,
-              nazev: nazevZeZdroje(skutecnaUrl, zdroj.nazev || "Zdroj"),
-              url: skutecnaUrl,
-              kategorie,
-              uroverDuvery,
+              nazev: zdroj.nazev,
+              url: zdroj.url,
+              kategorie: zdroj.kategorie,
+              uroverDuvery: zdroj.uroverDuvery,
               poznamka: POZNAMKA_AI_NAVRH_KALENDAR,
             },
           });
         }
 
         await zapisHistorii("Udalost", novaUdalost.id, "vytvoreno", "Navrženo AI agentem (Gemini + web search)");
-
-        if (nejvyssiUroven >= AUTOSCHVALENI_OD_UROVNE) {
-          await prisma.udalost.update({ where: { id: novaUdalost.id }, data: { stav: "schvaleno" } });
-          await zapisHistorii(
-            "Udalost",
-            novaUdalost.id,
-            "zmena_stavu",
-            "Automaticky schváleno – nejméně jeden zdroj s dostatečnou důvěrou"
-          );
-        }
+        await zapisHistorii(
+          "Udalost",
+          novaUdalost.id,
+          "zmena_stavu",
+          "Automaticky schváleno – nejméně jeden zdroj s dostatečnou důvěrou"
+        );
 
         navrzeno++;
       }
@@ -172,6 +190,8 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
     }
   }
 
-  console.log(`[agent] Hotovo. Navrženo: ${navrzeno}, přeskočeno: ${preskoceno}, chyb: ${chyby.length}`);
-  return { zpracovanoDni: pocetDni, navrzeno, preskoceno, chyby };
+  console.log(
+    `[agent] Hotovo. Navrženo: ${navrzeno}, přeskočeno (duplicita): ${preskoceno}, bez dostatečného zdroje: ${bezDostatecnehoZdroje}, chyb: ${chyby.length}`
+  );
+  return { zpracovanoDni: pocetDni, navrzeno, preskoceno, bezDostatecnehoZdroje, chyby };
 }
