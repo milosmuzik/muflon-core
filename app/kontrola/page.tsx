@@ -4,6 +4,7 @@ import Link from "next/link";
 import { sloucitSkupinu } from "@/lib/actions/slouceni";
 import { vratitBezZdrojeNaNavrh } from "@/lib/actions/kontrola";
 import DohledatZdrojeTlacitko from "@/components/DohledatZdrojeTlacitko";
+import OpravitRedirectyTlacitko from "@/components/OpravitRedirectyTlacitko";
 import { POZNAMKA_MB_CLENSTVI, STAV_LABEL } from "@/lib/constants";
 
 export const maxDuration = 60;
@@ -19,6 +20,7 @@ export default async function KontrolaPage() {
     udalostiNeoverene,
     udalostiVsechny,
     udalostiZdroje,
+    pocetGoogleRedirectu,
   ] = await Promise.all([
     prisma.interpret.findMany({
       orderBy: { createdAt: "asc" },
@@ -32,6 +34,7 @@ export default async function KontrolaPage() {
     prisma.udalost.findMany({ where: { zdrojAI: false, stav: "navrh" }, orderBy: { createdAt: "asc" } }),
     prisma.udalost.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.zdroj.findMany({ where: { cilovyTyp: "Udalost" }, select: { cilovyId: true } }),
+    prisma.zdroj.count({ where: { url: { contains: "vertexaisearch.cloud.google.com" } } }),
   ]);
 
   const interpretIdSeZdrojem = new Set(vsechnyZdroje.map((z) => z.cilovyId));
@@ -238,6 +241,15 @@ export default async function KontrolaPage() {
           limitu funkce – klikni víckrát, dokud fronta neubude. Co nenajde, nechá ve stavu „návrh".
         </p>
         <DohledatZdrojeTlacitko />
+      </IndexCard>
+
+      <IndexCard label={`🔗 Zdroje se špatnou URL – Google redirect místo skutečné adresy (${pocetGoogleRedirectu})`}>
+        <p className="text-muted text-sm mb-3">
+          Gemini (google_search) vracel u zdrojů odkaz přes Google, ne přímo na server – whitelist renomovaných médií
+          proto nefungoval a takové zdroje spadly na „neověřené" bez ohledu na to, jak důvěryhodné médium citovaly.
+          Tlačítko rozbalí uložený redirect na skutečnou URL, přepočítá důvěru a případně rovnou schválí.
+        </p>
+        <OpravitRedirectyTlacitko />
       </IndexCard>
 
       <IndexCard label={`📖 Příběhy bez zdroje (${pribehyBezZdroju.length})`}>

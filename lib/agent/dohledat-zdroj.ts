@@ -1,4 +1,5 @@
 import { RENOMOVANE_ZDROJE_DOMENY } from "@/lib/constants";
+import { rozbalRedirect } from "./redirect";
 
 const GEMINI_MODEL = "gemini-flash-lite-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -55,7 +56,8 @@ export async function dohledatZdroj(nazev: string, obsah: string): Promise<Nalez
     const kategorie = ["oficialni_web", "socialni_site", "media", "databaze"].includes(parsed.kategorie)
       ? parsed.kategorie
       : "media";
-    return { nazev: String(parsed.nazev).slice(0, 200), url: String(parsed.url), kategorie };
+    const url = await rozbalRedirect(String(parsed.url));
+    return { nazev: String(parsed.nazev).slice(0, 200), url, kategorie };
   } catch {
     return null;
   }

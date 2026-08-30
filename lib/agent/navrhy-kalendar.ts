@@ -6,6 +6,7 @@ import {
   urovenDuveryPriorita,
   urovenDuveryZeZdroje,
 } from "@/lib/constants";
+import { rozbalRedirect } from "./redirect";
 
 const GEMINI_MODEL = "gemini-flash-lite-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -133,15 +134,16 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
         let nejvyssiUroven = 0;
         for (const zdroj of polozka.zdroje.slice(0, 5)) {
           if (!zdroj.url) continue;
+          const skutecnaUrl = await rozbalRedirect(zdroj.url);
           const kategorie = PLATNE_KATEGORIE.has(zdroj.kategorie) ? zdroj.kategorie : "orientacni";
-          const uroverDuvery = urovenDuveryZeZdroje(kategorie, zdroj.url);
+          const uroverDuvery = urovenDuveryZeZdroje(kategorie, skutecnaUrl);
           nejvyssiUroven = Math.max(nejvyssiUroven, urovenDuveryPriorita(uroverDuvery));
           await prisma.zdroj.create({
             data: {
               cilovyTyp: "Udalost",
               cilovyId: novaUdalost.id,
               nazev: zdroj.nazev || "Zdroj",
-              url: zdroj.url,
+              url: skutecnaUrl,
               kategorie,
               uroverDuvery,
               poznamka: POZNAMKA_AI_NAVRH_KALENDAR,
