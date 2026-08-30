@@ -127,6 +127,12 @@ export const RENOMOVANE_ZDROJE_DOMENY = [
   "natalie.mu", // japonský hudební zpravodajský web, od 2007
   "barks.jp", // přední japonské hudební médium, od 2001
   "rockinon.com", // Rockin'on, japonský hudební vydavatel od 1972
+  // Severní Evropa.
+  "swedenrock.com", // Sweden Rock Magazine, od 2001
+  "swedenrockmagazine.com",
+  "gaffa.dk", // od 1983, nejstarší skandinávský hudební magazín (DK/SE/NO)
+  "impe.fi", // Imperiumi, finské metalové médium od 2002
+  "heavymetal.no", // norský metalový webzín
 ];
 
 function jeRenomovanyZdroj(url: string | null): boolean {
@@ -179,6 +185,11 @@ const ZNAME_NAZVY_DOMEN: Record<string, string> = {
   "natalie.mu": "Natalie",
   "barks.jp": "BARKS",
   "rockinon.com": "Rockin'on",
+  "swedenrock.com": "Sweden Rock Magazine",
+  "swedenrockmagazine.com": "Sweden Rock Magazine",
+  "gaffa.dk": "GAFFA",
+  "impe.fi": "Imperiumi",
+  "heavymetal.no": "Heavymetal.no",
   "wikipedia.org": "Wikipedia",
   "youtube.com": "YouTube",
   "bandcamp.com": "Bandcamp",
