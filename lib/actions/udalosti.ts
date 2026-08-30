@@ -5,7 +5,7 @@ import { zapisHistorii } from "@/lib/history";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { zjistiVice } from "@/lib/agent/zjisti-vice";
-import { POZNAMKA_AI_ROZSIRENI, urovenDuveryZeZdroje } from "@/lib/constants";
+import { POZNAMKA_AI_ROZSIRENI, nazevZeZdroje, urovenDuveryZeZdroje } from "@/lib/constants";
 import { zvazAutomatickeSchvaleni } from "@/lib/actions/spolecne";
 
 const PLATNE_KATEGORIE = new Set(["oficialni_web", "socialni_site", "archivni", "databaze", "media", "rozhovor", "kniha", "orientacni"]);
@@ -28,7 +28,7 @@ export async function rozsiritUdalost(id: string) {
       const uroverDuvery = urovenDuveryZeZdroje(kategorie, z.url);
       await prisma.zdroj.create({
         data: {
-          cilovyTyp: "Udalost", cilovyId: id, nazev: z.nazev, url: z.url,
+          cilovyTyp: "Udalost", cilovyId: id, nazev: nazevZeZdroje(z.url, z.nazev), url: z.url,
           kategorie,
           uroverDuvery, poznamka: POZNAMKA_AI_ROZSIRENI,
         },

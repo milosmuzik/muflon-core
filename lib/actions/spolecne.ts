@@ -15,15 +15,19 @@ const STAVOVE_ENTITY = new Set(["Pribeh", "Udalost"]);
 // nemusí se čekat na ruční "Posunout stav". Exportováno, protože stejnou
 // logiku potřebuje i AI enrichment (rozsiritUdalost, dohledávání zdrojů),
 // ne jen tenhle formulář.
-export async function zvazAutomatickeSchvaleni(cilovyTyp: string, cilovyId: string, uroverDuvery: string) {
-  if (!STAVOVE_ENTITY.has(cilovyTyp)) return;
-  if (urovenDuveryPriorita(uroverDuvery) < AUTOSCHVALENI_OD_UROVNE) return;
+export async function zvazAutomatickeSchvaleni(
+  cilovyTyp: string,
+  cilovyId: string,
+  uroverDuvery: string
+): Promise<boolean> {
+  if (!STAVOVE_ENTITY.has(cilovyTyp)) return false;
+  if (urovenDuveryPriorita(uroverDuvery) < AUTOSCHVALENI_OD_UROVNE) return false;
 
   const aktualni =
     cilovyTyp === "Pribeh"
       ? await prisma.pribeh.findUnique({ where: { id: cilovyId }, select: { stav: true } })
       : await prisma.udalost.findUnique({ where: { id: cilovyId }, select: { stav: true } });
-  if (!aktualni || (aktualni.stav !== "navrh" && aktualni.stav !== "overeno")) return;
+  if (!aktualni || (aktualni.stav !== "navrh" && aktualni.stav !== "overeno")) return false;
 
   if (cilovyTyp === "Pribeh") {
     await prisma.pribeh.update({ where: { id: cilovyId }, data: { stav: "schvaleno" } });
@@ -31,6 +35,7 @@ export async function zvazAutomatickeSchvaleni(cilovyTyp: string, cilovyId: stri
     await prisma.udalost.update({ where: { id: cilovyId }, data: { stav: "schvaleno" } });
   }
   await zapisHistorii(cilovyTyp, cilovyId, "zmena_stavu", "Automaticky schváleno – přidán zdroj s dostatečnou důvěrou");
+  return true;
 }
 
 // ---------------------------------------------------------------------------

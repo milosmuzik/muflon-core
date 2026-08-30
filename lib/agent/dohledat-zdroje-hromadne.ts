@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
-import { urovenDuveryZeZdroje, POZNAMKA_DOHLEDANO } from "@/lib/constants";
+import { urovenDuveryZeZdroje, nazevZeZdroje, POZNAMKA_DOHLEDANO } from "@/lib/constants";
 import { zvazAutomatickeSchvaleni } from "@/lib/actions/spolecne";
 import { dohledatZdroj } from "@/lib/agent/dohledat-zdroj";
 
@@ -36,7 +36,7 @@ export async function dohledatChybejiciZdroje(limitNaDavku = 5): Promise<Vyslede
         const uroverDuvery = urovenDuveryZeZdroje(nalez.kategorie, nalez.url);
         await prisma.zdroj.create({
           data: {
-            cilovyTyp: "Pribeh", cilovyId: pribeh.id, nazev: nalez.nazev, url: nalez.url,
+            cilovyTyp: "Pribeh", cilovyId: pribeh.id, nazev: nazevZeZdroje(nalez.url, nalez.nazev), url: nalez.url,
             kategorie: nalez.kategorie, uroverDuvery, poznamka: POZNAMKA_DOHLEDANO,
           },
         });
@@ -65,7 +65,7 @@ export async function dohledatChybejiciZdroje(limitNaDavku = 5): Promise<Vyslede
         const uroverDuvery = urovenDuveryZeZdroje(nalez.kategorie, nalez.url);
         await prisma.zdroj.create({
           data: {
-            cilovyTyp: "Udalost", cilovyId: udalost.id, nazev: nalez.nazev, url: nalez.url,
+            cilovyTyp: "Udalost", cilovyId: udalost.id, nazev: nazevZeZdroje(nalez.url, nalez.nazev), url: nalez.url,
             kategorie: nalez.kategorie, uroverDuvery, poznamka: POZNAMKA_DOHLEDANO,
           },
         });

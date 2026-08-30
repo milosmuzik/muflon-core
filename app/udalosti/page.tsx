@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { vytvoritUdalost } from "@/lib/actions/udalosti";
 import { prepnoutZverejneni } from "@/lib/actions/agent";
 import AgentTlacitko from "@/components/AgentTlacitko";
-import RevizeTlacitko from "@/components/RevizeTlacitko";
 import IndexCard from "@/components/IndexCard";
 import StatusBadge from "@/components/StatusBadge";
 import Link from "next/link";
@@ -45,13 +44,13 @@ export default async function UdalostiPage({ searchParams }: { searchParams: { f
         )}
       </IndexCard>
 
-      <IndexCard label="Revize existujících událostí podle důvěry zdrojů">
-        <p className="text-muted text-sm mb-3">
-          Projede všechny čekající události (návrh/ověřeno), přepočítá důvěru u zdrojů založených AI agentem podle
-          jejich kategorie a rovnou schválí ty, které mají zdroj s dostatečnou důvěrou (oficiální kanál nebo renomované médium).
-        </p>
-        <RevizeTlacitko />
-      </IndexCard>
+      <p className="text-muted text-xs">
+        Revize důvěry zdrojů (příběhy i události najednou) je na{" "}
+        <Link href="/kontrola" className="text-accent hover:underline">
+          stránce Kontrola
+        </Link>
+        .
+      </p>
 
       <div className="flex gap-2 text-xs font-mono">
         <Link href="/udalosti" className={`px-2 py-1 rounded-sm border ${!jenAiNavrhy ? "border-accent text-accent" : "border-line text-muted"}`}>
