@@ -3,6 +3,7 @@ import Link from "next/link";
 const POLOZKY = [
   { href: "/", label: "Přehled" },
   { href: "/interpreti", label: "Interpreti" },
+  { href: "/abecedni-seznam", label: "Abecední seznam" },
   { href: "/hudebnici", label: "Hudebníci" },
   { href: "/alba", label: "Alba" },
   { href: "/skladby", label: "Skladby" },
