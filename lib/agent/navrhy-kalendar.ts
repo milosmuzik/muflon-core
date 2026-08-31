@@ -8,6 +8,7 @@ import {
   urovenDuveryZeZdroje,
 } from "@/lib/constants";
 import { rozbalRedirect } from "./redirect";
+import { jsouDuplicitni } from "./duplicity";
 
 const GEMINI_MODEL = "gemini-flash-lite-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -111,10 +112,15 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
       for (const polozka of polozky) {
         if (!polozka.nazev || !polozka.zdroje?.length) continue;
 
-        const jizExistuje = await prisma.udalost.findFirst({
-          where: { datum: mmdd, nazev: { contains: polozka.nazev.slice(0, 20), mode: "insensitive" } },
+        // Porovnání podle podstatných slov, ne jen prvních 20 znaků -
+        // Gemini stejnou událost při různých bězích často přeformuluje
+        // ("Vydání alba X" vs. "Vydání přelomového alba X"), takže prostá
+        // shoda předpony duplicitu často nechytila.
+        const existujiciTentoDen = await prisma.udalost.findMany({
+          where: { datum: mmdd },
+          select: { nazev: true },
         });
-        if (jizExistuje) {
+        if (existujiciTentoDen.some((u) => jsouDuplicitni(u.nazev, polozka.nazev))) {
           preskoceno++;
           continue;
         }

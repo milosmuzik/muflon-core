@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { dohledatChybejiciZdroje, type VysledekDohledani } from "@/lib/agent/dohledat-zdroje-hromadne";
 import { revidovatVse, type VysledekRevizeVse } from "@/lib/agent/revize-vse";
 import { smazatNekvalifikovane, type VysledekUklidu } from "@/lib/agent/uklid";
+import { slouciDuplicitniUdalosti, type VysledekSlouceni } from "@/lib/agent/duplicity";
 
 // Vrátí příběhy a události, které mají stav dál než "návrh" (tedy se tváří
 // jako ověřené/schválené/publikované), ale nemají v databázi žádný zdroj –
@@ -81,5 +82,20 @@ export async function spustitUklidRucne(
   revalidatePath("/kontrola");
   revalidatePath("/pribehy");
   revalidatePath("/udalosti");
+  return vysledek;
+}
+
+// Nevratné, jednorázové sloučení duplicitních událostí (stejná věc,
+// jinak přeformulovaná) - viz lib/agent/duplicity.ts. Nová AI-vytvořená
+// duplicita už nevznikne (viz oprava v navrhy-kalendar.ts), tohle je
+// úklid toho, co vzniklo dřív.
+export async function spustitSlouceniRucne(
+  _predchoziStav: VysledekSlouceni,
+  _formData: FormData
+): Promise<VysledekSlouceni> {
+  const vysledek = await slouciDuplicitniUdalosti();
+  revalidatePath("/kontrola");
+  revalidatePath("/udalosti");
+  revalidatePath("/kalendar");
   return vysledek;
 }
