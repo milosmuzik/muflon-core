@@ -9,6 +9,13 @@ import {
 
 const AI_POZNAMKY = [POZNAMKA_AI_NAVRH_KALENDAR, POZNAMKA_AI_ROZSIRENI, POZNAMKA_DOHLEDANO];
 
+// Na rozdíl od revidovatVse() (lib/agent/revize-vse.ts) tady chceme najít
+// i zdroje, které revizí už jednou prošly a zůstaly nedostatečné (mají
+// poznámku s příponou PRIPONA_ZDROJ_REVIDOVAN) - přesně to jsou ty
+// natrvalo nekvalifikované, co má tenhle úklid smazat. Proto STARTSWITH,
+// ne přesná shoda.
+const AI_POZNAMKY_VCETNE_REVIDOVANYCH = AI_POZNAMKY.map((p) => ({ poznamka: { startsWith: p } }));
+
 export type VysledekUklidu = {
   zkontrolovano: number;
   smazanoUdalosti: number;
@@ -23,7 +30,7 @@ export type VysledekUklidu = {
 // (zdroje, vazby, historie, u událostí i publikace), ne jen archivují.
 export async function smazatNekvalifikovane(): Promise<VysledekUklidu> {
   const dotcene = await prisma.zdroj.findMany({
-    where: { cilovyTyp: { in: ["Udalost", "Pribeh"] }, poznamka: { in: AI_POZNAMKY } },
+    where: { cilovyTyp: { in: ["Udalost", "Pribeh"] }, OR: AI_POZNAMKY_VCETNE_REVIDOVANYCH },
     select: { cilovyTyp: true, cilovyId: true },
   });
 
