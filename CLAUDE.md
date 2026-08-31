@@ -75,6 +75,10 @@ Všechny tři AI funkce parsují odpověď Gemini jako "vrať POUZE JSON, žádn
 | `NEXT_PUBLIC_APP_URL` | základ pro absolutní URL (default `https://muflon-core.vercel.app`) |
 | `FACEBOOK_PAGE_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`, `INSTAGRAM_ACCOUNT_ID` | publikace na sociální sítě |
 
+## Časové pásmo
+
+Uživatel je v Praze. Kdykoliv se v komunikaci s ním nebo při plánování (crony ve `vercel.json`, Claude Code Remote Routines/triggery) mluví o čase bez výslovně uvedeného pásma, myslí se `Europe/Prague` — a to VČETNĚ respektování letního času (CEST = UTC+2 zhruba konec března – konec října, CET = UTC+1 jinak). Při zadávání `cron_expression` (ten se vždy vyhodnocuje v UTC) je proto nutné nejdřív převést požadovaný pražský čas na UTC podle offsetu, který právě platí k datu, kdy je pravidlo nastavováno/aktuální — ne podle pevně zafixovaného +1 nebo +2.
+
 ## Styl
 
 Tailwind s vlastní barevnou paletou (`bg-raised`, `text-muted`, `border-line`, `bg-sage`, `bg-accent`, `bg-rust` — viz `tailwind.config.ts` / `app/globals.css`), používanou konzistentně napříč `STAV_BARVA` a komponentami. Texty v UI i komentářích jsou česky, identifikátory (modely, pole, funkce) taktéž — drž se toho i v novém kódu.
