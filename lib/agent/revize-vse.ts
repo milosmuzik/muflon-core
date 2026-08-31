@@ -3,6 +3,7 @@ import {
   POZNAMKA_AI_NAVRH_KALENDAR,
   POZNAMKA_AI_ROZSIRENI,
   POZNAMKA_DOHLEDANO,
+  PRIPONA_ZDROJ_REVIDOVAN,
   nazevZeZdroje,
   urovenDuveryZeZdroje,
 } from "@/lib/constants";
@@ -49,12 +50,18 @@ export async function revidovatVse(kurzor: string | null, limitNaDavku = 25): Pr
     const zmeneno = spravnaUroven !== zdroj.uroverDuvery || skutecnaUrl !== zdroj.url || spravnyNazev !== zdroj.nazev;
 
     if (zmeneno) {
-      await prisma.zdroj.update({
-        where: { id: zdroj.id },
-        data: { url: skutecnaUrl, nazev: spravnyNazev, uroverDuvery: spravnaUroven },
-      });
       opravenoZdroju++;
     }
+
+    // Poznámku označíme jako revidovanou vždy, bez ohledu na výsledek - je
+    // to deterministický výpočet ze stejné URL/kategorie, opakovaná revize
+    // by dopadla stejně. Bez téhle přípony by fronta natrvalo obsahovala i
+    // zdroje, co revizí už jednou prošly a zůstaly nedostatečné, a každé
+    // další otevření /kontrola by je muselo znovu proklikat.
+    await prisma.zdroj.update({
+      where: { id: zdroj.id },
+      data: { url: skutecnaUrl, nazev: spravnyNazev, uroverDuvery: spravnaUroven, poznamka: `${zdroj.poznamka}${PRIPONA_ZDROJ_REVIDOVAN}` },
+    });
 
     if (await zvazAutomatickeSchvaleni(zdroj.cilovyTyp, zdroj.cilovyId, spravnaUroven)) {
       schvalenoNove++;

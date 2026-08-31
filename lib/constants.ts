@@ -261,6 +261,18 @@ export const POZNAMKA_AI_NAVRH_KALENDAR = "Navrženo AI agentem – doporučeno 
 export const POZNAMKA_AI_ROZSIRENI = "Doplněno přes „Zjisti více“.";
 export const POZNAMKA_DOHLEDANO = "Dohledáno AI fact-checkerem – oficiální kanál nebo renomované médium.";
 
+// Přípona, kterou revidovatVse() (lib/agent/revize-vse.ts) připojí k
+// poznámce po zpracování zdroje, ať se schválil, nebo ne. Bez ní by fronta
+// "Revize databáze" natrvalo obsahovala i zdroje, které revizí už jednou
+// prošly a zůstaly nedostatečné (výsledek je deterministický - opakovaná
+// revize by u nich pokaždé dopadla stejně) - každé nové otevření /kontrola
+// by je muselo znovu proklikat, než by se dostalo k opravdu novým zdrojům
+// z dalšího importu. Poznámka s touto příponou proto z fronty revize (a z
+// odpočtu na /kontrola) přirozeně vypadne, ale zůstává v AI_POZNAMKY
+// hledání se STARTSWITH pro smazatNekvalifikovane() (lib/agent/uklid.ts) -
+// ten musí najít i tyhle "jednou revidované a pořád nedostatečné" zdroje.
+export const PRIPONA_ZDROJ_REVIDOVAN = " [revize: beze změny]";
+
 // Stejný účel jako výše, ale pro dávkový import sestav z MusicBrainz
 // (prisma/enrich-hudebnici.ts) – podle poznámky na Clenstvi jde na
 // /kontrola dohledat, které sestavy vznikly automaticky a čekají na
