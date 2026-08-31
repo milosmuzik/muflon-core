@@ -6,6 +6,7 @@ import { vratitBezZdrojeNaNavrh } from "@/lib/actions/kontrola";
 import DohledatZdrojeTlacitko from "@/components/DohledatZdrojeTlacitko";
 import RevizeVseTlacitko from "@/components/RevizeVseTlacitko";
 import UklidTlacitko from "@/components/UklidTlacitko";
+import SlouceniTlacitko from "@/components/SlouceniTlacitko";
 import {
   POZNAMKA_MB_CLENSTVI,
   POZNAMKA_AI_NAVRH_KALENDAR,
@@ -272,6 +273,15 @@ export default async function KontrolaPage() {
           dávkách. <strong>Nevratné.</strong>
         </p>
         <UklidTlacitko />
+      </IndexCard>
+
+      <IndexCard label="🧬 Sloučit duplicitní události">
+        <p className="text-muted text-sm mb-3">
+          Stejná událost popsaná AI agentem dvakrát jinými slovy (starší kontrola porovnávala jen prvních 20 znaků
+          názvu, teď se srovnávají podstatná slova). Ponechá tu s lepším stavem/víc zdroji, zbytek smaže.{" "}
+          <strong>Nevratné.</strong>
+        </p>
+        <SlouceniTlacitko />
       </IndexCard>
 
       <IndexCard label={`📖 Příběhy bez zdroje (${pribehyBezZdroju.length})`}>
