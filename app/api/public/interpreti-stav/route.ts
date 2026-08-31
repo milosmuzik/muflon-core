@@ -12,6 +12,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// Bez tohohle Next.js handler (žádné searchParams/cookies/headers) staticky
+// vygeneruje při buildu a pak servíruje navždy stejnou odpověď (ověřeno:
+// "age" v hlavičce rostlo bez omezení, i po reálné změně dat v DB) - přesně
+// to, co má tenhle endpoint pro automatizaci sledující živý stav zabránit.
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const interpreti = await prisma.interpret.findMany({
     orderBy: { nazev: "asc" },
@@ -30,6 +36,6 @@ export async function GET() {
       hotovo: seznam.filter((i) => i.hotovo).length,
       interpreti: seznam,
     },
-    { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" } }
+    { headers: { "Cache-Control": "no-store" } }
   );
 }
