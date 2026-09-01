@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
-import { urovenDuveryZeZdroje, nazevZeZdroje, POZNAMKA_DOHLEDANO } from "@/lib/constants";
+import {
+  AUTOSCHVALENI_OD_UROVNE,
+  urovenDuveryPriorita,
+  urovenDuveryZeZdroje,
+  nazevZeZdroje,
+  POZNAMKA_DOHLEDANO,
+} from "@/lib/constants";
 import { zvazAutomatickeSchvaleni } from "@/lib/actions/spolecne";
 import { dohledatZdroj } from "@/lib/agent/dohledat-zdroj";
 import { smazatStavovouEntitu } from "@/lib/agent/uklid";
@@ -12,73 +18,91 @@ export type VysledekDohledani = {
   chyby: string[];
 };
 
+const CEKAJICI_STAVY = ["navrh", "overeno", "schvaleno"];
+
+async function entityBezZdroje(
+  typ: "Pribeh" | "Udalost",
+  limit: number
+): Promise<{ id: string; nazev: string; obsah: string }[]> {
+  if (typ === "Pribeh") {
+    const pribehy = await prisma.pribeh.findMany({
+      where: { stav: { in: CEKAJICI_STAVY } },
+      orderBy: { updatedAt: "asc" },
+      select: { id: true, nadpis: true, obsah: true },
+    });
+    const zdroje = await prisma.zdroj.findMany({ where: { cilovyTyp: "Pribeh" }, select: { cilovyId: true } });
+    const maZdroj = new Set(zdroje.map((z) => z.cilovyId));
+    return pribehy
+      .filter((p) => !maZdroj.has(p.id))
+      .slice(0, limit)
+      .map((p) => ({ id: p.id, nazev: p.nadpis, obsah: p.obsah }));
+  }
+
+  const udalosti = await prisma.udalost.findMany({
+    where: { stav: { in: CEKAJICI_STAVY } },
+    orderBy: { updatedAt: "asc" },
+    select: { id: true, nazev: true, popis: true },
+  });
+  const zdroje = await prisma.zdroj.findMany({ where: { cilovyTyp: "Udalost" }, select: { cilovyId: true } });
+  const maZdroj = new Set(zdroje.map((z) => z.cilovyId));
+  return udalosti
+    .filter((u) => !maZdroj.has(u.id))
+    .slice(0, limit)
+    .map((u) => ({ id: u.id, nazev: u.nazev, obsah: u.popis ?? "" }));
+}
+
+async function zpracujEntitu(typ: "Pribeh" | "Udalost", entita: { id: string; nazev: string; obsah: string }) {
+  const nalez = await dohledatZdroj(entita.nazev, entita.obsah);
+  if (!nalez) {
+    return (await smazatStavovouEntitu(typ, entita.id)) ? "smazano" : "preskoceno";
+  }
+
+  const uroverDuvery = urovenDuveryZeZdroje(nalez.kategorie, nalez.url);
+  if (urovenDuveryPriorita(uroverDuvery) < AUTOSCHVALENI_OD_UROVNE) {
+    return (await smazatStavovouEntitu(typ, entita.id)) ? "smazano" : "preskoceno";
+  }
+
+  await prisma.zdroj.create({
+    data: {
+      cilovyTyp: typ,
+      cilovyId: entita.id,
+      nazev: nazevZeZdroje(nalez.url, nalez.nazev),
+      url: nalez.url,
+      kategorie: nalez.kategorie,
+      uroverDuvery,
+      poznamka: POZNAMKA_DOHLEDANO,
+    },
+  });
+  await zapisHistorii(typ, entita.id, "upraveno", `AI dohledala zdroj: ${nalez.nazev}`);
+  await zvazAutomatickeSchvaleni(typ, entita.id, uroverDuvery);
+  return "nalezeno";
+}
+
 export async function dohledatChybejiciZdroje(limitNaDavku = 5): Promise<VysledekDohledani> {
   let zkontrolovano = 0;
   let nalezeno = 0;
   let smazano = 0;
   const chyby: string[] = [];
 
-  const pribehyNavrh = await prisma.pribeh.findMany({ where: { stav: "navrh" }, orderBy: { updatedAt: "asc" } });
-  const pribehyZdroje = await prisma.zdroj.findMany({ where: { cilovyTyp: "Pribeh" }, select: { cilovyId: true } });
-  const pribehMaZdroj = new Set(pribehyZdroje.map((z) => z.cilovyId));
-  const pribehyKZpracovani = pribehyNavrh.filter((p) => !pribehMaZdroj.has(p.id)).slice(0, limitNaDavku);
-
-  for (const pribeh of pribehyKZpracovani) {
+  const pribehy = await entityBezZdroje("Pribeh", limitNaDavku);
+  for (const pribeh of pribehy) {
     zkontrolovano++;
     try {
-      const nalez = await dohledatZdroj(pribeh.nadpis, pribeh.obsah);
-      if (nalez) {
-        const uroverDuvery = urovenDuveryZeZdroje(nalez.kategorie, nalez.url);
-        await prisma.zdroj.create({
-          data: {
-            cilovyTyp: "Pribeh",
-            cilovyId: pribeh.id,
-            nazev: nazevZeZdroje(nalez.url, nalez.nazev),
-            url: nalez.url,
-            kategorie: nalez.kategorie,
-            uroverDuvery,
-            poznamka: POZNAMKA_DOHLEDANO,
-          },
-        });
-        await zapisHistorii("Pribeh", pribeh.id, "upraveno", `AI dohledala zdroj: ${nalez.nazev}`);
-        await zvazAutomatickeSchvaleni("Pribeh", pribeh.id, uroverDuvery);
-        nalezeno++;
-      } else if (await smazatStavovouEntitu("Pribeh", pribeh.id)) {
-        smazano++;
-      }
+      const vysledek = await zpracujEntitu("Pribeh", pribeh);
+      if (vysledek === "nalezeno") nalezeno++;
+      if (vysledek === "smazano") smazano++;
     } catch (e) {
-      chyby.push(`Příběh „${pribeh.nadpis}“: ${(e as Error).message}`);
+      chyby.push(`Příběh „${pribeh.nazev}“: ${(e as Error).message}`);
     }
   }
 
-  const udalostiNavrh = await prisma.udalost.findMany({ where: { stav: "navrh" }, orderBy: { updatedAt: "asc" } });
-  const udalostiZdroje = await prisma.zdroj.findMany({ where: { cilovyTyp: "Udalost" }, select: { cilovyId: true } });
-  const udalostMaZdroj = new Set(udalostiZdroje.map((z) => z.cilovyId));
-  const udalostiKZpracovani = udalostiNavrh.filter((u) => !udalostMaZdroj.has(u.id)).slice(0, limitNaDavku);
-
-  for (const udalost of udalostiKZpracovani) {
+  const udalosti = await entityBezZdroje("Udalost", limitNaDavku);
+  for (const udalost of udalosti) {
     zkontrolovano++;
     try {
-      const nalez = await dohledatZdroj(udalost.nazev, udalost.popis ?? "");
-      if (nalez) {
-        const uroverDuvery = urovenDuveryZeZdroje(nalez.kategorie, nalez.url);
-        await prisma.zdroj.create({
-          data: {
-            cilovyTyp: "Udalost",
-            cilovyId: udalost.id,
-            nazev: nazevZeZdroje(nalez.url, nalez.nazev),
-            url: nalez.url,
-            kategorie: nalez.kategorie,
-            uroverDuvery,
-            poznamka: POZNAMKA_DOHLEDANO,
-          },
-        });
-        await zapisHistorii("Udalost", udalost.id, "upraveno", `AI dohledala zdroj: ${nalez.nazev}`);
-        await zvazAutomatickeSchvaleni("Udalost", udalost.id, uroverDuvery);
-        nalezeno++;
-      } else if (await smazatStavovouEntitu("Udalost", udalost.id)) {
-        smazano++;
-      }
+      const vysledek = await zpracujEntitu("Udalost", udalost);
+      if (vysledek === "nalezeno") nalezeno++;
+      if (vysledek === "smazano") smazano++;
     } catch (e) {
       chyby.push(`Událost „${udalost.nazev}“: ${(e as Error).message}`);
     }

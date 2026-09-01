@@ -17,6 +17,8 @@ export type VysledekUklidu = {
   smazanoPribehu: number;
 };
 
+const SMAZATELNE_STAVY = new Set(["navrh", "overeno", "schvaleno"]);
+
 export async function smazatStavovouEntitu(typ: string, id: string): Promise<boolean> {
   const zaznam =
     typ === "Udalost"
@@ -25,7 +27,7 @@ export async function smazatStavovouEntitu(typ: string, id: string): Promise<boo
         ? await prisma.pribeh.findUnique({ where: { id }, select: { stav: true } })
         : null;
   if (!zaznam) return false;
-  if (zaznam.stav !== "navrh" && zaznam.stav !== "overeno") return false;
+  if (!SMAZATELNE_STAVY.has(zaznam.stav)) return false;
 
   await prisma.zdroj.deleteMany({ where: { cilovyTyp: typ, cilovyId: id } });
   await prisma.vazba.deleteMany({

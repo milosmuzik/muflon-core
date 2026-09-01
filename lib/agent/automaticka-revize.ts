@@ -1,69 +1,132 @@
 import { dohledatChybejiciZdroje } from "@/lib/agent/dohledat-zdroje-hromadne";
-import { revidovatVse } from "@/lib/agent/revize-vse";
-import { smazatNekvalifikovane } from "@/lib/agent/uklid";
+import { slouciDuplicitniUdalosti } from "@/lib/agent/duplicity";
+import { smazatStavovouEntitu } from "@/lib/agent/uklid";
 import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
+import {
+  AUTOSCHVALENI_OD_UROVNE,
+  urovenDuveryPriorita,
+  urovenDuveryZeZdroje,
+} from "@/lib/constants";
 
 export type VysledekAutomatickeRevize = {
-  vracenoNaNavrh: number;
+  schvaleno: number;
+  smazanoNedostatecnyZdroj: number;
   dohledano: number;
   smazanoBezZdroje: number;
-  revidovanoZdroju: number;
-  schvaleno: number;
-  smazanoPoRevizi: number;
+  sloucenoDuplicit: number;
+  zbyva: number;
+  hotovo: boolean;
   chyby: string[];
 };
 
-async function vratitSchvaleneBezZdrojeNaNavrh(): Promise<number> {
-  let vraceno = 0;
+const CEKAJICI_STAVY = ["navrh", "overeno", "schvaleno"];
 
-  const pribehy = await prisma.pribeh.findMany({ where: { stav: { not: "navrh" } } });
-  for (const pribeh of pribehy) {
-    const pocetZdroju = await prisma.zdroj.count({ where: { cilovyTyp: "Pribeh", cilovyId: pribeh.id } });
-    if (pocetZdroju === 0) {
-      await prisma.pribeh.update({ where: { id: pribeh.id }, data: { stav: "navrh" } });
-      await zapisHistorii("Pribeh", pribeh.id, "zmena_stavu", `${pribeh.stav} → navrh (automatická revize – bez zdroje)`);
-      vraceno++;
+async function pocetCekajicich(): Promise<number> {
+  const [pribehy, udalosti] = await Promise.all([
+    prisma.pribeh.count({ where: { stav: { in: CEKAJICI_STAVY } } }),
+    prisma.udalost.count({ where: { stav: { in: CEKAJICI_STAVY } } }),
+  ]);
+
+  const [pribehyWhitelist, udalostiWhitelist] = await Promise.all([
+    idSWhitelistem("Pribeh"),
+    idSWhitelistem("Udalost"),
+  ]);
+
+  const pribehyCekaji = await prisma.pribeh.count({
+    where: { stav: { in: CEKAJICI_STAVY }, id: { notIn: [...pribehyWhitelist] } },
+  });
+  const udalostiCekaji = await prisma.udalost.count({
+    where: { stav: { in: CEKAJICI_STAVY }, id: { notIn: [...udalostiWhitelist] } },
+  });
+
+  void pribehy;
+  void udalosti;
+  return pribehyCekaji + udalostiCekaji;
+}
+
+async function idSWhitelistem(typ: "Pribeh" | "Udalost"): Promise<Set<string>> {
+  const zdroje = await prisma.zdroj.findMany({
+    where: { cilovyTyp: typ },
+    select: { cilovyId: true, kategorie: true, url: true, uroverDuvery: true },
+  });
+  const vysledek = new Set<string>();
+  for (const z of zdroje) {
+    const uroven = urovenDuveryZeZdroje(z.kategorie, z.url);
+    if (urovenDuveryPriorita(uroven) >= AUTOSCHVALENI_OD_UROVNE) vysledek.add(z.cilovyId);
+  }
+  return vysledek;
+}
+
+async function rozhodniPodleExistujicichZdroju(): Promise<{
+  schvaleno: number;
+  smazanoNedostatecnyZdroj: number;
+}> {
+  let schvaleno = 0;
+  let smazanoNedostatecnyZdroj = 0;
+
+  for (const typ of ["Pribeh", "Udalost"] as const) {
+    const zaznamy =
+      typ === "Pribeh"
+        ? await prisma.pribeh.findMany({ where: { stav: { in: CEKAJICI_STAVY } }, select: { id: true, stav: true } })
+        : await prisma.udalost.findMany({ where: { stav: { in: CEKAJICI_STAVY } }, select: { id: true, stav: true } });
+
+    const zdroje = await prisma.zdroj.findMany({
+      where: { cilovyTyp: typ, cilovyId: { in: zaznamy.map((z) => z.id) } },
+    });
+    const podleId = new Map<string, typeof zdroje>();
+    for (const z of zdroje) {
+      const seznam = podleId.get(z.cilovyId) ?? [];
+      seznam.push(z);
+      podleId.set(z.cilovyId, seznam);
+    }
+
+    for (const zaznam of zaznamy) {
+      const zdrojeZaznamu = podleId.get(zaznam.id) ?? [];
+      if (zdrojeZaznamu.length === 0) continue;
+
+      let nejvyssi = 0;
+      for (const zdroj of zdrojeZaznamu) {
+        const uroven = urovenDuveryZeZdroje(zdroj.kategorie, zdroj.url);
+        if (uroven !== zdroj.uroverDuvery) {
+          await prisma.zdroj.update({ where: { id: zdroj.id }, data: { uroverDuvery: uroven } });
+        }
+        nejvyssi = Math.max(nejvyssi, urovenDuveryPriorita(uroven));
+      }
+
+      if (nejvyssi >= AUTOSCHVALENI_OD_UROVNE) {
+        if (zaznam.stav !== "schvaleno") {
+          if (typ === "Pribeh") {
+            await prisma.pribeh.update({ where: { id: zaznam.id }, data: { stav: "schvaleno" } });
+          } else {
+            await prisma.udalost.update({ where: { id: zaznam.id }, data: { stav: "schvaleno" } });
+          }
+          await zapisHistorii(typ, zaznam.id, "zmena_stavu", `${zaznam.stav} → schvaleno (whitelist)`);
+          schvaleno++;
+        }
+      } else if (await smazatStavovouEntitu(typ, zaznam.id)) {
+        smazanoNedostatecnyZdroj++;
+      }
     }
   }
 
-  const udalosti = await prisma.udalost.findMany({ where: { stav: { not: "navrh" } } });
-  for (const udalost of udalosti) {
-    const pocetZdroju = await prisma.zdroj.count({ where: { cilovyTyp: "Udalost", cilovyId: udalost.id } });
-    if (pocetZdroju === 0) {
-      await prisma.udalost.update({ where: { id: udalost.id }, data: { stav: "navrh" } });
-      await zapisHistorii("Udalost", udalost.id, "zmena_stavu", `${udalost.stav} → navrh (automatická revize – bez zdroje)`);
-      vraceno++;
-    }
-  }
-
-  return vraceno;
+  return { schvaleno, smazanoNedostatecnyZdroj };
 }
 
 export async function spustitAutomatickouRevizi(): Promise<VysledekAutomatickeRevize> {
-  const vracenoNaNavrh = await vratitSchvaleneBezZdrojeNaNavrh();
-  const dohledani = await dohledatChybejiciZdroje(6);
-
-  let revidovanoZdroju = 0;
-  let schvaleno = 0;
-  let kurzor: string | null = null;
-  for (let i = 0; i < 4; i++) {
-    const davka = await revidovatVse(kurzor, 20);
-    revidovanoZdroju += davka.opravenoZdroju;
-    schvaleno += davka.schvalenoNove;
-    kurzor = davka.posledniId;
-    if (davka.hotovo) break;
-  }
-
-  const uklid = await smazatNekvalifikovane();
+  const existujici = await rozhodniPodleExistujicichZdroju();
+  const dohledani = await dohledatChybejiciZdroje(8);
+  const slouceni = await slouciDuplicitniUdalosti();
+  const zbyva = await pocetCekajicich();
 
   return {
-    vracenoNaNavrh,
+    schvaleno: existujici.schvaleno,
+    smazanoNedostatecnyZdroj: existujici.smazanoNedostatecnyZdroj,
     dohledano: dohledani.nalezeno,
     smazanoBezZdroje: dohledani.smazano,
-    revidovanoZdroju,
-    schvaleno,
-    smazanoPoRevizi: uklid.smazanoUdalosti + uklid.smazanoPribehu,
+    sloucenoDuplicit: slouceni.smazanoDuplicit,
+    zbyva,
+    hotovo: zbyva === 0,
     chyby: dohledani.chyby,
   };
 }
