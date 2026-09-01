@@ -76,20 +76,27 @@ async function rozhodniPodleExistujicichZdroju(): Promise<{
 }> {
   let schvaleno = 0;
   let smazanoNedostatecnyZdroj = 0;
-  let zpracovano = 0;
+  let zpracovanoSeZdrojem = 0;
 
   for (const typ of ["Pribeh", "Udalost"] as const) {
-    if (zpracovano >= LIMIT_ROZHODNUTI) break;
+    const whitelist = await idSWhitelistem(typ);
+    const vyloucena = Array.from(whitelist);
 
     const zaznamy =
       typ === "Pribeh"
         ? await prisma.pribeh.findMany({
-            where: { stav: { in: CEKAJICI_STAVY } },
+            where: {
+              stav: { in: CEKAJICI_STAVY },
+              ...(vyloucena.length ? { id: { notIn: vyloucena } } : {}),
+            },
             select: { id: true, stav: true },
             take: LIMIT_ROZHODNUTI,
           })
         : await prisma.udalost.findMany({
-            where: { stav: { in: CEKAJICI_STAVY } },
+            where: {
+              stav: { in: CEKAJICI_STAVY },
+              ...(vyloucena.length ? { id: { notIn: vyloucena } } : {}),
+            },
             select: { id: true, stav: true },
             take: LIMIT_ROZHODNUTI,
           });
@@ -107,10 +114,9 @@ async function rozhodniPodleExistujicichZdroju(): Promise<{
 
     const keSmazani: string[] = [];
     for (const zaznam of zaznamy) {
-      if (zpracovano >= LIMIT_ROZHODNUTI) break;
       const zdrojeZaznamu = podleId.get(zaznam.id) ?? [];
       if (zdrojeZaznamu.length === 0) continue;
-      zpracovano++;
+      zpracovanoSeZdrojem++;
 
       const nejvyssi = zdrojeZaznamu.reduce(
         (max, z) => Math.max(max, urovenDuveryPriorita(urovenDuveryZeZdroje(z.kategorie, z.url))),
@@ -134,7 +140,11 @@ async function rozhodniPodleExistujicichZdroju(): Promise<{
     smazanoNedostatecnyZdroj += await smazatDavku(typ, keSmazani);
   }
 
-  return { schvaleno, smazanoNedostatecnyZdroj, jesteRozhodovat: zpracovano >= LIMIT_ROZHODNUTI };
+  return {
+    schvaleno,
+    smazanoNedostatecnyZdroj,
+    jesteRozhodovat: zpracovanoSeZdrojem >= LIMIT_ROZHODNUTI,
+  };
 }
 
 export async function spustitAutomatickouRevizi(): Promise<VysledekAutomatickeRevize> {
