@@ -1,29 +1,50 @@
 import { prisma } from "@/lib/prisma";
 import IndexCard from "@/components/IndexCard";
 import Link from "next/link";
+import { splnujeHledani } from "@/lib/hledani";
+
+export const dynamic = "force-dynamic";
 
 export default async function HledatPage({ searchParams }: { searchParams: { q?: string } }) {
   const dotaz = searchParams.q?.trim();
 
-  let vysledky: { typ: string; href: string; nazev: string; podnazev?: string }[] = [];
+  let vysledky: { typ: string; href: string; nazev: string }[] = [];
 
   if (dotaz) {
     const [interpreti, hudebnici, alba, skladby, pribehy, udalosti] = await Promise.all([
-      prisma.interpret.findMany({ where: { nazev: { contains: dotaz, mode: "insensitive" as const } }, take: 10 }),
-      prisma.hudebnik.findMany({ where: { jmeno: { contains: dotaz, mode: "insensitive" as const } }, take: 10 }),
-      prisma.album.findMany({ where: { nazev: { contains: dotaz, mode: "insensitive" as const } }, take: 10 }),
-      prisma.skladba.findMany({ where: { nazev: { contains: dotaz, mode: "insensitive" as const } }, take: 10 }),
-      prisma.pribeh.findMany({ where: { OR: [{ nadpis: { contains: dotaz, mode: "insensitive" as const } }, { obsah: { contains: dotaz, mode: "insensitive" as const } }] }, take: 10 }),
-      prisma.udalost.findMany({ where: { nazev: { contains: dotaz, mode: "insensitive" as const } }, take: 10 }),
+      prisma.interpret.findMany({ select: { id: true, nazev: true, alternativniNazvy: true } }),
+      prisma.hudebnik.findMany({ select: { id: true, jmeno: true, pseudonymy: true } }),
+      prisma.album.findMany({ select: { id: true, nazev: true, alternativniNazvy: true } }),
+      prisma.skladba.findMany({ select: { id: true, nazev: true } }),
+      prisma.pribeh.findMany({ select: { id: true, nadpis: true, obsah: true } }),
+      prisma.udalost.findMany({ select: { id: true, nazev: true } }),
     ]);
 
     vysledky = [
-      ...interpreti.map((i) => ({ typ: "Interpret", href: `/interpreti/${i.id}`, nazev: i.nazev })),
-      ...hudebnici.map((h) => ({ typ: "Hudebník", href: `/hudebnici/${h.id}`, nazev: h.jmeno })),
-      ...alba.map((a) => ({ typ: "Album", href: `/alba/${a.id}`, nazev: a.nazev })),
-      ...skladby.map((s) => ({ typ: "Skladba", href: `/skladby/${s.id}`, nazev: s.nazev })),
-      ...pribehy.map((p) => ({ typ: "Příběh", href: `/pribehy/${p.id}`, nazev: p.nadpis })),
-      ...udalosti.map((u) => ({ typ: "Událost", href: `/udalosti/${u.id}`, nazev: u.nazev })),
+      ...interpreti
+        .filter((i) => splnujeHledani([i.nazev, i.alternativniNazvy], dotaz))
+        .slice(0, 20)
+        .map((i) => ({ typ: "Interpret", href: `/interpreti/${i.id}`, nazev: i.nazev })),
+      ...hudebnici
+        .filter((h) => splnujeHledani([h.jmeno, h.pseudonymy], dotaz))
+        .slice(0, 20)
+        .map((h) => ({ typ: "Hudebník", href: `/hudebnici/${h.id}`, nazev: h.jmeno })),
+      ...alba
+        .filter((a) => splnujeHledani([a.nazev, a.alternativniNazvy], dotaz))
+        .slice(0, 20)
+        .map((a) => ({ typ: "Album", href: `/alba/${a.id}`, nazev: a.nazev })),
+      ...skladby
+        .filter((s) => splnujeHledani([s.nazev], dotaz))
+        .slice(0, 20)
+        .map((s) => ({ typ: "Skladba", href: `/skladby/${s.id}`, nazev: s.nazev })),
+      ...pribehy
+        .filter((p) => splnujeHledani([p.nadpis, p.obsah], dotaz))
+        .slice(0, 20)
+        .map((p) => ({ typ: "Příběh", href: `/pribehy/${p.id}`, nazev: p.nadpis })),
+      ...udalosti
+        .filter((u) => splnujeHledani([u.nazev], dotaz))
+        .slice(0, 20)
+        .map((u) => ({ typ: "Událost", href: `/udalosti/${u.id}`, nazev: u.nazev })),
     ];
   }
 
