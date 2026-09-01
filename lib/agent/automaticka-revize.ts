@@ -22,33 +22,10 @@ export type VysledekAutomatickeRevize = {
 
 const CEKAJICI_STAVY = ["navrh", "overeno", "schvaleno"];
 
-async function pocetCekajicich(): Promise<number> {
-  const [pribehy, udalosti] = await Promise.all([
-    prisma.pribeh.count({ where: { stav: { in: CEKAJICI_STAVY } } }),
-    prisma.udalost.count({ where: { stav: { in: CEKAJICI_STAVY } } }),
-  ]);
-
-  const [pribehyWhitelist, udalostiWhitelist] = await Promise.all([
-    idSWhitelistem("Pribeh"),
-    idSWhitelistem("Udalost"),
-  ]);
-
-  const pribehyCekaji = await prisma.pribeh.count({
-    where: { stav: { in: CEKAJICI_STAVY }, id: { notIn: [...pribehyWhitelist] } },
-  });
-  const udalostiCekaji = await prisma.udalost.count({
-    where: { stav: { in: CEKAJICI_STAVY }, id: { notIn: [...udalostiWhitelist] } },
-  });
-
-  void pribehy;
-  void udalosti;
-  return pribehyCekaji + udalostiCekaji;
-}
-
 async function idSWhitelistem(typ: "Pribeh" | "Udalost"): Promise<Set<string>> {
   const zdroje = await prisma.zdroj.findMany({
     where: { cilovyTyp: typ },
-    select: { cilovyId: true, kategorie: true, url: true, uroverDuvery: true },
+    select: { cilovyId: true, kategorie: true, url: true },
   });
   const vysledek = new Set<string>();
   for (const z of zdroje) {
@@ -56,6 +33,19 @@ async function idSWhitelistem(typ: "Pribeh" | "Udalost"): Promise<Set<string>> {
     if (urovenDuveryPriorita(uroven) >= AUTOSCHVALENI_OD_UROVNE) vysledek.add(z.cilovyId);
   }
   return vysledek;
+}
+
+export async function pocetCekajicichNaWhitelist(): Promise<number> {
+  const [pribehy, udalosti, pribehyWhitelist, udalostiWhitelist] = await Promise.all([
+    prisma.pribeh.findMany({ where: { stav: { in: CEKAJICI_STAVY } }, select: { id: true } }),
+    prisma.udalost.findMany({ where: { stav: { in: CEKAJICI_STAVY } }, select: { id: true } }),
+    idSWhitelistem("Pribeh"),
+    idSWhitelistem("Udalost"),
+  ]);
+  return (
+    pribehy.filter((p) => !pribehyWhitelist.has(p.id)).length +
+    udalosti.filter((u) => !udalostiWhitelist.has(u.id)).length
+  );
 }
 
 async function rozhodniPodleExistujicichZdroju(): Promise<{
@@ -117,7 +107,7 @@ export async function spustitAutomatickouRevizi(): Promise<VysledekAutomatickeRe
   const existujici = await rozhodniPodleExistujicichZdroju();
   const dohledani = await dohledatChybejiciZdroje(8);
   const slouceni = await slouciDuplicitniUdalosti();
-  const zbyva = await pocetCekajicich();
+  const zbyva = await pocetCekajicichNaWhitelist();
 
   return {
     schvaleno: existujici.schvaleno,

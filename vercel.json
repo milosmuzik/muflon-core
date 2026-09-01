@@ -11,6 +11,14 @@
     {
       "path": "/api/cron/revize",
       "schedule": "30 7 * * *"
+    },
+    {
+      "path": "/api/cron/revize",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/revize",
+      "schedule": "0 13 * * *"
     }
   ]
 }
