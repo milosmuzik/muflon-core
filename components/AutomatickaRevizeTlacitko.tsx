@@ -37,13 +37,28 @@ export default function AutomatickaRevizeTlacitko() {
     setBezi(true);
     setDavka(0);
     let soucet = pocatecniStav;
+    let timeoutuZaSebou = 0;
     try {
       for (;;) {
-        const vysledek = await spustitAutomatickouReviziRucne(soucet);
+        let vysledek: VysledekAutomatickeRevize;
+        try {
+          vysledek = await spustitAutomatickouReviziRucne(soucet);
+          timeoutuZaSebou = 0;
+        } catch {
+          timeoutuZaSebou++;
+          if (timeoutuZaSebou >= 5) {
+            soucet = { ...soucet, chyby: [...soucet.chyby, "Vercel opakovaně překročil časový limit."].slice(-8) };
+            setStav(soucet);
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 1500));
+          continue;
+        }
         soucet = secti(soucet, vysledek);
         setStav(soucet);
         setDavka((n) => n + 1);
-        if (vysledek.hotovo || vysledek.chyby.length > 4) break;
+        if (vysledek.hotovo) break;
+        if (vysledek.chyby.length > 4) break;
       }
     } finally {
       setBezi(false);
@@ -75,7 +90,6 @@ export default function AutomatickaRevizeTlacitko() {
           {stav.hotovo ? "Hotovo. " : bezi ? `Ještě zbývá ${stav.zbyva}. ` : `Zbývá ${stav.zbyva}. `}
           Schváleno: {stav.schvaleno} · Dohledáno: {stav.dohledano} · Smazáno (slabý zdroj):{" "}
           {stav.smazanoNedostatecnyZdroj} · Smazáno (bez zdroje): {stav.smazanoBezZdroje}
-          {stav.sloucenoDuplicit > 0 ? ` · Sloučeno duplicit: ${stav.sloucenoDuplicit}` : ""}
         </p>
       )}
       {stav.chyby.length > 0 && (
