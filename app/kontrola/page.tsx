@@ -3,6 +3,7 @@ import IndexCard from "@/components/IndexCard";
 import Link from "next/link";
 import { sloucitSkupinu } from "@/lib/actions/slouceni";
 import { vratitBezZdrojeNaNavrh } from "@/lib/actions/kontrola";
+import AutomatickaRevizeTlacitko from "@/components/AutomatickaRevizeTlacitko";
 import DohledatZdrojeTlacitko from "@/components/DohledatZdrojeTlacitko";
 import RevizeVseTlacitko from "@/components/RevizeVseTlacitko";
 import UklidTlacitko from "@/components/UklidTlacitko";
@@ -63,9 +64,6 @@ export default async function KontrolaPage() {
   const udalostIdSeZdrojem = new Set(udalostiZdroje.map((z) => z.cilovyId));
   const udalostiBezZdroje = udalostiVsechny.filter((u) => !udalostIdSeZdrojem.has(u.id));
 
-  // Skutečný rozpor: záznam se tváří jako ověřený/schválený/publikovaný
-  // (stav dál než "návrh"), ale nemá žádný zdroj. U "návrhu" je to v
-  // pořádku – tam se zdroj teprve doplňuje.
   const pribehySchvaleneBezZdroju = pribehyBezZdroju.filter((p) => p.stav !== "navrh");
   const udalostiSchvaleneBezZdroju = udalostiBezZdroje.filter((u) => u.stav !== "navrh");
 
@@ -91,10 +89,6 @@ export default async function KontrolaPage() {
   }
   const duplicitniInterpreti = [...podleNazvu.values()].filter((v) => v.length > 1);
 
-  // Sestavy doplněné dávkovým importem z MusicBrainz (prisma/enrich-hudebnici.ts)
-  // – Interpret/Hudebník nemá redakční workflow jako příběhy/události, takže
-  // tohle je jediné místo, kde se dá tenhle typ automaticky doplněných,
-  // zatím lidsky nezkontrolovaných dat vůbec uvidět.
   const nazevInterpretaMapa = new Map(interpretiVsichni.map((i) => [i.id, i.nazev]));
   const interpretIdMbNezkontrolovano = new Set(
     clenstviVsechny.filter((c) => c.poznamka === POZNAMKA_MB_CLENSTVI).map((c) => c.interpretId)
@@ -118,15 +112,21 @@ export default async function KontrolaPage() {
         </p>
       </div>
 
+      <IndexCard label="⚖ Automatická revize existujících dat">
+        <p className="text-muted text-sm mb-3">
+          Projde příběhy a události: když se najde ověřený zdroj z whitelistu, záznam se schválí a zůstane v síti.
+          Když zdroj nejde dohledat nebo nestačí, záznam ve stavu návrh/ověřeno se smaže. Interprety, alba a skladby
+          z playlistu nesahe. Běží také denně v 7:30. <strong>Mazání je nevratné.</strong>
+        </p>
+        <AutomatickaRevizeTlacitko />
+      </IndexCard>
+
       {(pribehySchvaleneBezZdroju.length > 0 || udalostiSchvaleneBezZdroju.length > 0) && (
         <IndexCard
           label={`🚨 Označeno jako ověřené/schválené, ale bez zdroje (${pribehySchvaleneBezZdroju.length + udalostiSchvaleneBezZdroju.length})`}
         >
           <p className="text-muted text-sm mb-3">
-            Tyhle záznamy mají stav dál než „návrh" (viz štítek), ale v databázi u nich není žádný zdroj – to je
-            přímý rozpor s principem „bez zdroje je údaj jen tvrzením, ne ověřenou znalostí" (kap. 4.4
-            Ověřitelnost). Většinou pocházejí ze starého importu karet, který stav nastavoval napevno. Oprava je
-            vrátí na „návrh" – zůstanou v databázi, jen přestanou tvrdit něco, co nemají čím podložit.
+            Tyhle záznamy mají stav dál než „návrh" (viz štítek), ale v databázi u nich není žádný zdroj.
           </p>
           <form action={vratitBezZdrojeNaNavrh} className="mb-4">
             <button className="bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring text-sm">
@@ -195,8 +195,7 @@ export default async function KontrolaPage() {
 
       <IndexCard label={`🤖 Sestavy doplněné z MusicBrainz, nezkontrolováno (${interpretiMbNezkontrolovano.length})`}>
         <p className="text-muted text-xs mb-3">
-          Dávkový import (<code>npm run enrich:hudebnici</code>) doplnil členy kapely automaticky z MusicBrainz –
-          obecné databáze mimo redakční whitelist, sama o sobě nestačí jako ověřený zdroj. Projdi a potvrď ručně.
+          Dávkový import (<code>npm run enrich:hudebnici</code>) doplnil členy kapely automaticky z MusicBrainz.
         </p>
         {interpretiMbNezkontrolovano.length === 0 ? (
           <p className="text-muted text-sm">Žádné nezkontrolované automatické sestavy.</p>
@@ -249,37 +248,28 @@ export default async function KontrolaPage() {
 
       <IndexCard label="🔍 Dohledat zdroje (AI fact-checker)">
         <p className="text-muted text-sm mb-3">
-          Projede příběhy a události bez zdroje a přes web search jim zkusí najít oficiální kanál interpreta nebo
-          článek na renomovaném rockovém/metalovém serveru (viz whitelist v kódu). Zpracovává po dávkách kvůli
-          limitu funkce – klikni víckrát, dokud fronta neubude. Co nenajde, nechá ve stavu „návrh".
+          Projde příběhy a události bez zdroje. Co najde na whitelistu, přidá a případně schválí. Co nenajde, smaže.
         </p>
         <DohledatZdrojeTlacitko />
       </IndexCard>
 
       <IndexCard label={`🔄 Revize databáze – zdroje od AI agentů (${pocetAiZdroju})`}>
         <p className="text-muted text-sm mb-3">
-          Jedno tlačítko pro všechno naráz, příběhy i události: rozbalí uložený Google redirect na skutečnou URL,
-          opraví zobrazovaný název zdroje podle skutečné domény (ne podle toho, co si AI vymyslela), přepočítá důvěru
-          a rovnou schválí, co teď má dostatečně důvěryhodný zdroj. Postupuje dávkami – klikej, dokud nenapíše
-          „Hotovo".
+          Rozbalí Google redirect, opraví název zdroje, přepočítá důvěru a schválí, co stačí.
         </p>
         <RevizeVseTlacitko />
       </IndexCard>
 
       <IndexCard label="🗑 Nevratně smazat nekvalifikované">
         <p className="text-muted text-sm mb-3">
-          Příběhy a události, které prošly revizí výše, ale zdroj od AI agenta stále nestačí na schválení. Nikdo je
-          ručně nereviduje, takže dál jen zabírají místo bez šance na schválení. Spustí se jednorázově celé, ne po
-          dávkách. <strong>Nevratné.</strong>
+          Příběhy a události po revizi, jejichž zdroj stále nestačí. <strong>Nevratné.</strong>
         </p>
         <UklidTlacitko />
       </IndexCard>
 
       <IndexCard label="🧬 Sloučit duplicitní události">
         <p className="text-muted text-sm mb-3">
-          Stejná událost popsaná AI agentem dvakrát jinými slovy (starší kontrola porovnávala jen prvních 20 znaků
-          názvu, teď se srovnávají podstatná slova). Ponechá tu s lepším stavem/víc zdroji, zbytek smaže.{" "}
-          <strong>Nevratné.</strong>
+          Stejná událost dvakrát jinými slovy. Ponechá tu s lepším stavem. <strong>Nevratné.</strong>
         </p>
         <SlouceniTlacitko />
       </IndexCard>
