@@ -26,16 +26,18 @@ function TlacitkoOdeslat() {
 }
 
 export default function AutomatickaRevizeTlacitko() {
-  const [stav, formAction] = useFormState(spustitAutomatickouReviziRucne, pocatecniStav);
+  const [surovyStav, formAction] = useFormState(spustitAutomatickouReviziRucne, pocatecniStav);
+  const stav = surovyStav ?? pocatecniStav;
+  const chyby = stav.chyby ?? [];
 
   const probehlo =
-    stav.vracenoNaNavrh +
-      stav.dohledano +
-      stav.smazanoBezZdroje +
-      stav.revidovanoZdroju +
-      stav.schvaleno +
-      stav.smazanoPoRevizi +
-      stav.chyby.length >
+    (stav.vracenoNaNavrh ?? 0) +
+      (stav.dohledano ?? 0) +
+      (stav.smazanoBezZdroje ?? 0) +
+      (stav.revidovanoZdroju ?? 0) +
+      (stav.schvaleno ?? 0) +
+      (stav.smazanoPoRevizi ?? 0) +
+      chyby.length >
     0;
 
   return (
@@ -45,13 +47,14 @@ export default function AutomatickaRevizeTlacitko() {
       </form>
       {probehlo && (
         <p className="mt-3 text-sm text-paper">
-          Vráceno na návrh: {stav.vracenoNaNavrh} · Dohledáno zdrojů: {stav.dohledano} · Schváleno:{" "}
-          {stav.schvaleno} · Smazáno bez zdroje: {stav.smazanoBezZdroje} · Smazáno po revizi: {stav.smazanoPoRevizi}
+          Vráceno na návrh: {stav.vracenoNaNavrh ?? 0} · Dohledáno zdrojů: {stav.dohledano ?? 0} · Schváleno:{" "}
+          {stav.schvaleno ?? 0} · Smazáno bez zdroje: {stav.smazanoBezZdroje ?? 0} · Smazáno po revizi:{" "}
+          {stav.smazanoPoRevizi ?? 0}
         </p>
       )}
-      {stav.chyby.length > 0 && (
+      {chyby.length > 0 && (
         <ul className="mt-2 text-xs text-rust space-y-1">
-          {stav.chyby.map((c) => (
+          {chyby.map((c) => (
             <li key={c}>{c}</li>
           ))}
         </ul>
