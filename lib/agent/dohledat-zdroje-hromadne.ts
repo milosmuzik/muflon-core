@@ -3,24 +3,19 @@ import { zapisHistorii } from "@/lib/history";
 import { urovenDuveryZeZdroje, nazevZeZdroje, POZNAMKA_DOHLEDANO } from "@/lib/constants";
 import { zvazAutomatickeSchvaleni } from "@/lib/actions/spolecne";
 import { dohledatZdroj } from "@/lib/agent/dohledat-zdroj";
+import { smazatStavovouEntitu } from "@/lib/agent/uklid";
 
 export type VysledekDohledani = {
   zkontrolovano: number;
   nalezeno: number;
+  smazano: number;
   chyby: string[];
 };
 
-// Zpracuje jednu dávku záznamů bez zdroje (příběhy i události ve stavu
-// "navrh") a zkusí k nim přes web search dohledat oficiální/renomovaný
-// zdroj (viz lib/agent/dohledat-zdroj.ts). Dávka je omezená kvůli limitu
-// serverless funkce (Gemini + web search na položku trvá řádově sekundy) –
-// tlačítko lze klikat opakovaně, dokud fronta neubude. Záznamy, u kterých
-// se zdroj nenajde, se "updatedAt" bump přesune na konec fronty, aby
-// opakované kliknutí systematicky procházelo celý zbytek, ne pořád stejné
-// první položky.
 export async function dohledatChybejiciZdroje(limitNaDavku = 5): Promise<VysledekDohledani> {
   let zkontrolovano = 0;
   let nalezeno = 0;
+  let smazano = 0;
   const chyby: string[] = [];
 
   const pribehyNavrh = await prisma.pribeh.findMany({ where: { stav: "navrh" }, orderBy: { updatedAt: "asc" } });
@@ -36,16 +31,20 @@ export async function dohledatChybejiciZdroje(limitNaDavku = 5): Promise<Vyslede
         const uroverDuvery = urovenDuveryZeZdroje(nalez.kategorie, nalez.url);
         await prisma.zdroj.create({
           data: {
-            cilovyTyp: "Pribeh", cilovyId: pribeh.id, nazev: nazevZeZdroje(nalez.url, nalez.nazev), url: nalez.url,
-            kategorie: nalez.kategorie, uroverDuvery, poznamka: POZNAMKA_DOHLEDANO,
+            cilovyTyp: "Pribeh",
+            cilovyId: pribeh.id,
+            nazev: nazevZeZdroje(nalez.url, nalez.nazev),
+            url: nalez.url,
+            kategorie: nalez.kategorie,
+            uroverDuvery,
+            poznamka: POZNAMKA_DOHLEDANO,
           },
         });
         await zapisHistorii("Pribeh", pribeh.id, "upraveno", `AI dohledala zdroj: ${nalez.nazev}`);
         await zvazAutomatickeSchvaleni("Pribeh", pribeh.id, uroverDuvery);
         nalezeno++;
-      } else {
-        // posune se na konec fronty, aby příští klik zkusil jiné položky
-        await prisma.pribeh.update({ where: { id: pribeh.id }, data: { nadpis: pribeh.nadpis } });
+      } else if (await smazatStavovouEntitu("Pribeh", pribeh.id)) {
+        smazano++;
       }
     } catch (e) {
       chyby.push(`Příběh „${pribeh.nadpis}“: ${(e as Error).message}`);
@@ -65,20 +64,25 @@ export async function dohledatChybejiciZdroje(limitNaDavku = 5): Promise<Vyslede
         const uroverDuvery = urovenDuveryZeZdroje(nalez.kategorie, nalez.url);
         await prisma.zdroj.create({
           data: {
-            cilovyTyp: "Udalost", cilovyId: udalost.id, nazev: nazevZeZdroje(nalez.url, nalez.nazev), url: nalez.url,
-            kategorie: nalez.kategorie, uroverDuvery, poznamka: POZNAMKA_DOHLEDANO,
+            cilovyTyp: "Udalost",
+            cilovyId: udalost.id,
+            nazev: nazevZeZdroje(nalez.url, nalez.nazev),
+            url: nalez.url,
+            kategorie: nalez.kategorie,
+            uroverDuvery,
+            poznamka: POZNAMKA_DOHLEDANO,
           },
         });
         await zapisHistorii("Udalost", udalost.id, "upraveno", `AI dohledala zdroj: ${nalez.nazev}`);
         await zvazAutomatickeSchvaleni("Udalost", udalost.id, uroverDuvery);
         nalezeno++;
-      } else {
-        await prisma.udalost.update({ where: { id: udalost.id }, data: { nazev: udalost.nazev } });
+      } else if (await smazatStavovouEntitu("Udalost", udalost.id)) {
+        smazano++;
       }
     } catch (e) {
       chyby.push(`Událost „${udalost.nazev}“: ${(e as Error).message}`);
     }
   }
 
-  return { zkontrolovano, nalezeno, chyby };
+  return { zkontrolovano, nalezeno, smazano, chyby };
 }
