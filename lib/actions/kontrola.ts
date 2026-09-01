@@ -1,7 +1,5 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
-import { zapisHistorii } from "@/lib/history";
 import { revalidatePath } from "next/cache";
 import { dohledatChybejiciZdroje, type VysledekDohledani } from "@/lib/agent/dohledat-zdroje-hromadne";
 import { revidovatVse, type VysledekRevizeVse } from "@/lib/agent/revize-vse";
@@ -13,28 +11,34 @@ function revalidateKontrola() {
   revalidatePath("/kontrola");
   revalidatePath("/pribehy");
   revalidatePath("/udalosti");
+  revalidatePath("/kalendar");
 }
 
-export async function vratitBezZdrojeNaNavrh() {
-  const pribehy = await prisma.pribeh.findMany({ where: { stav: { not: "navrh" } } });
-  for (const pribeh of pribehy) {
-    const pocetZdroju = await prisma.zdroj.count({ where: { cilovyTyp: "Pribeh", cilovyId: pribeh.id } });
-    if (pocetZdroju === 0) {
-      await prisma.pribeh.update({ where: { id: pribeh.id }, data: { stav: "navrh" } });
-      await zapisHistorii("Pribeh", pribeh.id, "zmena_stavu", `${pribeh.stav} → navrh (vráceno při kontrole – bez zdroje)`);
-    }
-  }
+const PRAZDNY_VYSLEDEK: VysledekAutomatickeRevize = {
+  schvaleno: 0,
+  smazanoNedostatecnyZdroj: 0,
+  dohledano: 0,
+  smazanoBezZdroje: 0,
+  sloucenoDuplicit: 0,
+  zbyva: 0,
+  hotovo: false,
+  chyby: [],
+};
 
-  const udalosti = await prisma.udalost.findMany({ where: { stav: { not: "navrh" } } });
-  for (const udalost of udalosti) {
-    const pocetZdroju = await prisma.zdroj.count({ where: { cilovyTyp: "Udalost", cilovyId: udalost.id } });
-    if (pocetZdroju === 0) {
-      await prisma.udalost.update({ where: { id: udalost.id }, data: { stav: "navrh" } });
-      await zapisHistorii("Udalost", udalost.id, "zmena_stavu", `${udalost.stav} → navrh (vráceno při kontrole – bez zdroje)`);
-    }
+export async function spustitAutomatickouReviziRucne(
+  _predchoziStav: VysledekAutomatickeRevize | null,
+  _formData?: FormData
+): Promise<VysledekAutomatickeRevize> {
+  try {
+    const vysledek = await spustitAutomatickouRevizi();
+    revalidateKontrola();
+    return vysledek;
+  } catch (e) {
+    return {
+      ...PRAZDNY_VYSLEDEK,
+      chyby: [(e as Error).message || "Revize selhala."],
+    };
   }
-
-  revalidateKontrola();
 }
 
 export async function spustitDohledaniRucne(
@@ -42,7 +46,7 @@ export async function spustitDohledaniRucne(
   _formData: FormData
 ): Promise<VysledekDohledani> {
   try {
-    const vysledek = await dohledatChybejiciZdroje();
+    const vysledek = await dohledatChybejiciZdroje(8);
     revalidateKontrola();
     return vysledek;
   } catch (e) {
@@ -81,28 +85,5 @@ export async function spustitSlouceniRucne(
 ): Promise<VysledekSlouceni> {
   const vysledek = await slouciDuplicitniUdalosti();
   revalidateKontrola();
-  revalidatePath("/kalendar");
   return vysledek;
-}
-
-export async function spustitAutomatickouReviziRucne(
-  _predchoziStav: VysledekAutomatickeRevize | null,
-  _formData: FormData
-): Promise<VysledekAutomatickeRevize> {
-  try {
-    const vysledek = await spustitAutomatickouRevizi();
-    revalidateKontrola();
-    revalidatePath("/kalendar");
-    return vysledek;
-  } catch (e) {
-    return {
-      vracenoNaNavrh: 0,
-      dohledano: 0,
-      smazanoBezZdroje: 0,
-      revidovanoZdroju: 0,
-      schvaleno: 0,
-      smazanoPoRevizi: 0,
-      chyby: [(e as Error).message || "Revize selhala."],
-    };
-  }
 }

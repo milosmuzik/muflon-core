@@ -3,10 +3,6 @@ import { dohledatChybejiciZdroje } from "@/lib/agent/dohledat-zdroje-hromadne";
 
 export const maxDuration = 60;
 
-// Denní automatický běh AI fact-checkeru (viz "Dohledat zdroje" na
-// /kontrola) - dřív šlo jen ručně po dávkách po 5, což by frontu
-// příběhů/událostí bez zdroje čistilo měsíce klikání. Větší dávka než
-// ruční tlačítko, protože cron nemá čekajícího uživatele na druhé straně.
 export async function GET(request: NextRequest) {
   const hlavicka = request.headers.get("authorization");
   if (hlavicka !== `Bearer ${process.env.CRON_SECRET}`) {
