@@ -1,5 +1,4 @@
 import { dohledatChybejiciZdroje } from "@/lib/agent/dohledat-zdroje-hromadne";
-import { smazatStavovouEntitu } from "@/lib/agent/uklid";
 import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
 import {
