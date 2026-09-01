@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 
 const SLUCITELNA_POLE = ["alternativniNazvy", "rokVzniku", "zeme", "mesto", "zanry", "historie", "redakcniVyznam", "poznamka"] as const;
 
-async function sloucitDvojici(ponechatId: string, smazatId: string) {
+export async function sloucitDvojici(ponechatId: string, smazatId: string) {
+  if (ponechatId === smazatId) return;
+
   await prisma.$transaction(async (tx) => {
     const ponechat = await tx.interpret.findUnique({ where: { id: ponechatId } });
     const smazat = await tx.interpret.findUnique({ where: { id: smazatId } });
@@ -56,7 +58,7 @@ async function sloucitDvojici(ponechatId: string, smazatId: string) {
         entitaTyp: "Interpret",
         entitaId: ponechatId,
         akce: "upraveno",
-        popis: `Sloučeno s duplicitním záznamem „${smazat.nazev}"`,
+        popis: `Sloučeno s duplicitním záznamem „${smazat.nazev}“`,
       },
     });
   });

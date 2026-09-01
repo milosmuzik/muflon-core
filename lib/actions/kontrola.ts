@@ -6,6 +6,7 @@ import { revidovatVse, type VysledekRevizeVse } from "@/lib/agent/revize-vse";
 import { smazatNekvalifikovane, type VysledekUklidu } from "@/lib/agent/uklid";
 import { slouciDuplicitniUdalosti, type VysledekSlouceni } from "@/lib/agent/duplicity";
 import { spustitAutomatickouRevizi, type VysledekAutomatickeRevize } from "@/lib/agent/automaticka-revize";
+import { opravitFeatDavku, type VysledekUkliduFeat } from "@/lib/agent/uklid-feat";
 
 function revalidateKontrola() {
   revalidatePath("/kontrola");
@@ -37,6 +38,25 @@ export async function spustitAutomatickouReviziRucne(
     return {
       ...PRAZDNY_VYSLEDEK,
       chyby: [(e as Error).message || "Revize selhala."],
+    };
+  }
+}
+
+export async function spustitOpravuFeatRucne(): Promise<VysledekUkliduFeat> {
+  try {
+    const vysledek = await opravitFeatDavku();
+    revalidatePath("/kontrola");
+    revalidatePath("/interpreti");
+    revalidatePath("/skladby");
+    return vysledek;
+  } catch (e) {
+    return {
+      opravenoInterpretu: 0,
+      napojenoHostu: 0,
+      slouceno: 0,
+      zbyva: 0,
+      hotovo: false,
+      chyby: [(e as Error).message || "Oprava feat selhala."],
     };
   }
 }
