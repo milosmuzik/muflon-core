@@ -7,12 +7,8 @@ import { dohledatChybejiciZdroje, type VysledekDohledani } from "@/lib/agent/doh
 import { revidovatVse, type VysledekRevizeVse } from "@/lib/agent/revize-vse";
 import { smazatNekvalifikovane, type VysledekUklidu } from "@/lib/agent/uklid";
 import { slouciDuplicitniUdalosti, type VysledekSlouceni } from "@/lib/agent/duplicity";
+import { spustitAutomatickouRevizi, type VysledekAutomatickeRevize } from "@/lib/agent/automaticka-revize";
 
-// Vrátí příběhy a události, které mají stav dál než "návrh" (tedy se tváří
-// jako ověřené/schválené/publikované), ale nemají v databázi žádný zdroj –
-// to je rozpor s principem "bez zdroje je údaj jen tvrzením, ne ověřenou
-// znalostí" (kap. 4.4 Ověřitelnost). Vznikaly hlavně starým importem karet,
-// který stav nastavoval napevno bez ohledu na zdroje.
 export async function vratitBezZdrojeNaNavrh() {
   const pribehy = await prisma.pribeh.findMany({ where: { stav: { not: "navrh" } } });
   for (const pribeh of pribehy) {
@@ -48,10 +44,6 @@ export async function spustitDohledaniRucne(
   return vysledek;
 }
 
-// Jediné, centrální dávkové tlačítko revize - viz lib/agent/revize-vse.ts.
-// Nahrazuje dřívější roztroušené funkce (revidovatUdalosti, revidovatPribehy,
-// opravitGoogleRedirecty), které dělaly téměř totéž na třech různých
-// místech a každou další chybu bylo nutné opravovat vícekrát.
 export async function spustitReviziVseRucne(
   predchoziStav: VysledekRevizeVse,
   formData: FormData
@@ -72,8 +64,6 @@ export async function spustitReviziVseRucne(
   };
 }
 
-// Nevratné, jednorázové smazání příběhů a událostí, které i po plné revizi
-// (viz výše) zůstaly bez dostatečně důvěryhodného zdroje - viz lib/agent/uklid.ts.
 export async function spustitUklidRucne(
   _predchoziStav: VysledekUklidu,
   _formData: FormData
@@ -85,16 +75,24 @@ export async function spustitUklidRucne(
   return vysledek;
 }
 
-// Nevratné, jednorázové sloučení duplicitních událostí (stejná věc,
-// jinak přeformulovaná) - viz lib/agent/duplicity.ts. Nová AI-vytvořená
-// duplicita už nevznikne (viz oprava v navrhy-kalendar.ts), tohle je
-// úklid toho, co vzniklo dřív.
 export async function spustitSlouceniRucne(
   _predchoziStav: VysledekSlouceni,
   _formData: FormData
 ): Promise<VysledekSlouceni> {
   const vysledek = await slouciDuplicitniUdalosti();
   revalidatePath("/kontrola");
+  revalidatePath("/udalosti");
+  revalidatePath("/kalendar");
+  return vysledek;
+}
+
+export async function spustitAutomatickouReviziRucne(
+  _predchoziStav: VysledekAutomatickeRevize,
+  _formData: FormData
+): Promise<VysledekAutomatickeRevize> {
+  const vysledek = await spustitAutomatickouRevizi();
+  revalidatePath("/kontrola");
+  revalidatePath("/pribehy");
   revalidatePath("/udalosti");
   revalidatePath("/kalendar");
   return vysledek;
