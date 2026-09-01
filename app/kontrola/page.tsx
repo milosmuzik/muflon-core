@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import IndexCard from "@/components/IndexCard";
 import AutomatickaRevizeTlacitko from "@/components/AutomatickaRevizeTlacitko";
+import OpravaFeatTlacitko from "@/components/OpravaFeatTlacitko";
 import { pocetCekajicichNaWhitelist } from "@/lib/agent/automaticka-revize";
+import { pocetFeatKOprave } from "@/lib/agent/uklid-feat";
 import {
   AUTOSCHVALENI_OD_UROVNE,
   urovenDuveryPriorita,
@@ -11,10 +13,11 @@ import {
 export const maxDuration = 60;
 
 export default async function KontrolaPage() {
-  const [zbyva, pribehyHotovo, udalostiHotovo] = await Promise.all([
+  const [zbyva, pribehyHotovo, udalostiHotovo, featKOprave] = await Promise.all([
     pocetCekajicichNaWhitelist(),
     pocetSWhitelistem("Pribeh"),
     pocetSWhitelistem("Udalost"),
+    pocetFeatKOprave(),
   ]);
 
   return (
@@ -39,6 +42,17 @@ export default async function KontrolaPage() {
         <AutomatickaRevizeTlacitko />
         <p className="text-muted text-xs mt-3 font-mono">
           Už drží whitelist: {pribehyHotovo} příběhů, {udalostiHotovo} událostí
+        </p>
+      </IndexCard>
+
+      <IndexCard label="Opravit feat / ft">
+        <p className="text-muted text-sm mb-3">
+          Falešné karty typu „Kapela Ft. Host“ se rozdělí: primární interpret zůstane, host se
+          napojí na skladbu. Název skladby z playlistu se nemění. Nic se ti nepřidá ke schválení.
+        </p>
+        <OpravaFeatTlacitko />
+        <p className="text-muted text-xs mt-3 font-mono">
+          {featKOprave === 0 ? "Žádná falešná karta s feat/ft." : `${featKOprave} interpretů má feat/ft v názvu.`}
         </p>
       </IndexCard>
     </div>
