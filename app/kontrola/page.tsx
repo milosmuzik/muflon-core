@@ -10,13 +10,11 @@ import {
 
 export const maxDuration = 60;
 
-const CEKAJICI_STAVY = ["navrh", "overeno", "schvaleno"];
-
 export default async function KontrolaPage() {
   const [zbyva, pribehyHotovo, udalostiHotovo] = await Promise.all([
     pocetCekajicichNaWhitelist(),
-    pocetSeSchvalenymWhitelistem("Pribeh"),
-    pocetSeSchvalenymWhitelistem("Udalost"),
+    pocetSWhitelistem("Pribeh"),
+    pocetSWhitelistem("Udalost"),
   ]);
 
   return (
@@ -47,7 +45,7 @@ export default async function KontrolaPage() {
   );
 }
 
-async function pocetSeSchvalenymWhitelistem(typ: "Pribeh" | "Udalost"): Promise<number> {
+async function pocetSWhitelistem(typ: "Pribeh" | "Udalost"): Promise<number> {
   const zdroje = await prisma.zdroj.findMany({
     where: { cilovyTyp: typ },
     select: { cilovyId: true, kategorie: true, url: true },
@@ -58,9 +56,5 @@ async function pocetSeSchvalenymWhitelistem(typ: "Pribeh" | "Udalost"): Promise<
       ids.add(z.cilovyId);
     }
   }
-  if (ids.size === 0) return 0;
-  if (typ === "Pribeh") {
-    return prisma.pribeh.count({ where: { id: { in: [...ids] }, stav: { notIn: CEKAJICI_STAVY.filter((s) => s !== "schvaleno") } } });
-  }
-  return prisma.udalost.count({ where: { id: { in: [...ids] }, stav: { notIn: CEKAJICI_STAVY.filter((s) => s !== "schvaleno") } } });
+  return ids.size;
 }
