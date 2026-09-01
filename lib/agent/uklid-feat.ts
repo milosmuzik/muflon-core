@@ -51,14 +51,8 @@ function pridejAlternativni(stavajici: string | null, pridat: string): string {
 }
 
 export async function pocetFeatKOprave(): Promise<number> {
-  const [interpreti, skladby] = await Promise.all([
-    prisma.interpret.findMany({ select: { nazev: true } }),
-    prisma.skladba.findMany({ select: { nazev: true } }),
-  ]);
-  return (
-    interpreti.filter((i) => obsahujeFeat(i.nazev)).length +
-    skladby.filter((s) => obsahujeFeat(s.nazev)).length
-  );
+  const interpreti = await prisma.interpret.findMany({ select: { nazev: true } });
+  return interpreti.filter((i) => obsahujeFeat(i.nazev)).length;
 }
 
 export async function opravitFeatDavku(): Promise<VysledekUkliduFeat> {
@@ -117,9 +111,11 @@ export async function opravitFeatDavku(): Promise<VysledekUkliduFeat> {
     }
   }
 
-  if (featInterpreti.length < LIMIT) {
+  if (featInterpreti.length === 0) {
     const skladby = await prisma.skladba.findMany({
-      select: { id: true, nazev: true },
+      where: { poznamka: { not: { contains: "feat-napojen" } } },
+      select: { id: true, nazev: true, poznamka: true },
+      take: 80,
     });
     const featSkladby = skladby.filter((s) => obsahujeFeat(s.nazev)).slice(0, LIMIT);
     for (const skladba of featSkladby) {
@@ -130,6 +126,8 @@ export async function opravitFeatDavku(): Promise<VysledekUkliduFeat> {
           const hostId = await najdiNeboVytvorInterpret(host);
           if (await pripojKeSkladbě(skladba.id, hostId)) napojenoHostu++;
         }
+        const znacka = skladba.poznamka ? `${skladba.poznamka} | feat-napojen` : "feat-napojen";
+        await prisma.skladba.update({ where: { id: skladba.id }, data: { poznamka: znacka } });
       } catch (e) {
         chyby.push(`Skladba „${skladba.nazev}“: ${(e as Error).message}`);
       }
@@ -137,5 +135,12 @@ export async function opravitFeatDavku(): Promise<VysledekUkliduFeat> {
   }
 
   const zbyva = await pocetFeatKOprave();
-  return { opravenoInterpretu, napojenoHostu, slouceno, zbyva, hotovo: zbyva === 0, chyby };
+  return {
+    opravenoInterpretu,
+    napojenoHostu,
+    slouceno,
+    zbyva,
+    hotovo: zbyva === 0 && featInterpreti.length === 0,
+    chyby,
+  };
 }

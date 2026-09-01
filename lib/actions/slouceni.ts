@@ -58,7 +58,7 @@ export async function sloucitDvojici(ponechatId: string, smazatId: string) {
         entitaTyp: "Interpret",
         entitaId: ponechatId,
         akce: "upraveno",
-        popis: `Šloučeno s duplicitním záznamem „${smazat.nazev}“`,
+        popis: `Sloučeno s duplicitním záznamem „${smazat.nazev}“`,
       },
     });
   });
