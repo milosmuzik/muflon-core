@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import IndexCard from "@/components/IndexCard";
 import AutomatickaRevizeTlacitko from "@/components/AutomatickaRevizeTlacitko";
 import OpravaFeatTlacitko from "@/components/OpravaFeatTlacitko";
+import DoplnitKatalogTlacitko from "@/components/DoplnitKatalogTlacitko";
 import { pocetCekajicichNaWhitelist } from "@/lib/agent/automaticka-revize";
 import { pocetFeatKOprave } from "@/lib/agent/uklid-feat";
 import {
@@ -37,7 +38,14 @@ export default async function KontrolaPage() {
         </p>
       </div>
 
-      <IndexCard label="Bez zdroje (všechny entity)">
+      <IndexCard label="Doplnit hudebníky a alba">
+        <p className="text-muted text-sm mb-3">
+          Jen hledá chybějící fakta a zdroje. Hudebníky ani alba nemaže.
+        </p>
+        <DoplnitKatalogTlacitko />
+      </IndexCard>
+
+      <IndexCard label="Bez zdroje (přehled)">
         {celkemBezZdroje === 0 ? (
           <p className="text-muted text-sm">Nic nechybí.</p>
         ) : (
@@ -61,12 +69,10 @@ export default async function KontrolaPage() {
         )}
       </IndexCard>
 
-      <IndexCard label="Ověřit všechna data">
+      <IndexCard label="Ověřit příběhy a události">
         <p className="text-muted text-sm mb-3">
-          Jeden klik. Systém podle whitelistu schválí, nebo smaže. Nic se nevrací na návrh a nic
-          nového se ti nepřidá k ručnímu schválení. Interprety, alba a skladby z playlistu nesahá.
-          Když tab necháš otevřený, dávky běží samy do nuly. Stejná práce běží i v noci cronem.
-          Mazání je nevratné.
+          Jeden klik. Systém podle whitelistu schválí, nebo smaže. Interprety, hudebníky, alba a
+          skladby z playlistu nesahá. Mazání je jen u příběhů a událostí.
         </p>
         <AutomatickaRevizeTlacitko />
         <p className="text-muted text-xs mt-3 font-mono">
@@ -76,8 +82,7 @@ export default async function KontrolaPage() {
 
       <IndexCard label="Opravit feat / ft">
         <p className="text-muted text-sm mb-3">
-          Falešné karty typu „Kapela Ft. Host“ se rozdělí: primární interpret zůstane, host se
-          napojí na skladbu. Název skladby z playlistu se nemění. Nic se ti nepřidá ke schválení.
+          Falešné karty typu „Kapela Ft. Host“ se rozdělí. Nic se ti nepřidá ke schválení.
         </p>
         <OpravaFeatTlacitko />
         <p className="text-muted text-xs mt-3 font-mono">
