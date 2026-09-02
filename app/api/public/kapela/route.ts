@@ -14,15 +14,15 @@
 //   "sestava": [{ "jmeno", "role", "nastroj", "obdobiOd", "obdobiDo" }],
 //   "historie": "...", "kratkyPribeh": "..." }
 // { "nalezena": false }
-//
-// Všechny textové pole nesou CELÝ text (bez zkracování) - klient si sám
-// vybere, co a jak zobrazit. "sestava" (členové kapely) bývá vyplněná
-// prakticky vždy; "historie" slouží jako doplněk/náhrada, když chybí
-// příběhy nebo události. "kratkyPribeh" je starší, zkrácené pole
-// ponechané pro zpětnou kompatibilitu.
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  jeHolandskyVanaheimText,
+  maNasaditCeskehoVanaheima,
+  VANAHEIM_HISTORIE_CZ,
+  VANAHEIM_SESTAVA_CZ,
+} from "@/lib/homonyma/vanaheim";
 
 const CORS_HEADERS = { "Access-Control-Allow-Origin": "*" };
 const MAX_DELKA_PRIBEHU = 500;
@@ -64,11 +64,10 @@ async function kandidatiPodleJmena(jmeno: string) {
     return prisma.interpret.findMany({ where: { id: { in: shody.map((s) => s.id) } } });
   }
 
-  const obsahuje = await prisma.interpret.findMany({
+  return prisma.interpret.findMany({
     where: { nazev: { contains: jmeno, mode: "insensitive" } },
     take: 10,
   });
-  return obsahuje;
 }
 
 async function vyberInterpreta(
@@ -76,33 +75,37 @@ async function vyberInterpreta(
   skladba: string | null,
 ) {
   if (kandidati.length === 0) return null;
-  if (kandidati.length === 1 || !skladba) return kandidati[0];
+  if (kandidati.length === 1) return kandidati[0];
 
-  const hledana = normalizuj(skladba);
-  const sRepertoarem = await prisma.interpret.findMany({
-    where: { id: { in: kandidati.map((k) => k.id) } },
-    include: {
-      skladby: { include: { skladba: true } },
-      alba: { include: { album: true } },
-    },
-  });
+  if (skladba) {
+    const hledana = normalizuj(skladba);
+    const sRepertoarem = await prisma.interpret.findMany({
+      where: { id: { in: kandidati.map((k) => k.id) } },
+      include: {
+        skladby: { include: { skladba: true } },
+        alba: { include: { album: true } },
+      },
+    });
 
-  const podleSkladby = sRepertoarem.find((i) =>
-    i.skladby.some((s) => normalizuj(s.skladba.nazev) === hledana),
+    const podleSkladby = sRepertoarem.find((i) =>
+      i.skladby.some((s) => normalizuj(s.skladba.nazev) === hledana),
+    );
+    if (podleSkladby) return kandidati.find((k) => k.id === podleSkladby.id) ?? podleSkladby;
+
+    const podleAlba = sRepertoarem.find((i) =>
+      i.alba.some((a) => normalizuj(a.album.nazev) === hledana),
+    );
+    if (podleAlba) return kandidati.find((k) => k.id === podleAlba.id) ?? podleAlba;
+  }
+
+  const cesky = kandidati.find(
+    (k) =>
+      /česko|cesko|czechia|czech/i.test(k.zeme ?? "") ||
+      /chlumec/i.test(k.mesto ?? ""),
   );
-  if (podleSkladby) return kandidati.find((k) => k.id === podleSkladby.id) ?? podleSkladby;
-
-  const podleAlba = sRepertoarem.find((i) =>
-    i.alba.some((a) => normalizuj(a.album.nazev) === hledana),
-  );
-  if (podleAlba) return kandidati.find((k) => k.id === podleAlba.id) ?? podleAlba;
-
-  const podleCasti = sRepertoarem.find(
-    (i) =>
-      i.skladby.some((s) => normalizuj(s.skladba.nazev).includes(hledana) || hledana.includes(normalizuj(s.skladba.nazev))) ||
-      i.alba.some((a) => normalizuj(a.album.nazev).includes(hledana) || hledana.includes(normalizuj(a.album.nazev))),
-  );
-  if (podleCasti) return kandidati.find((k) => k.id === podleCasti.id) ?? podleCasti;
+  if (cesky && skladba && maNasaditCeskehoVanaheima({ nazevInterpreta: cesky.nazev, skladba })) {
+    return cesky;
+  }
 
   return kandidati[0];
 }
@@ -160,14 +163,33 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ nalezena: false }, { headers: CORS_HEADERS });
   }
 
-  const [pribehy, udalosti, sestava] = await Promise.all([
+  const [pribehyRaw, udalostiRaw, sestavaRaw] = await Promise.all([
     najdiVerejnePribehy(interpret.id),
     najdiVerejneUdalosti(interpret.nazev),
     najdiSestavu(interpret.id),
   ]);
+
+  const prepis = maNasaditCeskehoVanaheima({
+    nazevInterpreta: interpret.nazev,
+    skladba,
+    historie: interpret.historie,
+    zeme: interpret.zeme,
+    mesto: interpret.mesto,
+  });
+
+  const historie = prepis ? VANAHEIM_HISTORIE_CZ : (interpret.historie ?? "");
+  const sestavaHolandska = sestavaRaw.some((c) => jeHolandskyVanaheimText(c.jmeno));
+  const sestava = prepis && (sestavaHolandska || sestavaRaw.length === 0) ? VANAHEIM_SESTAVA_CZ : sestavaRaw;
+  const pribehy = prepis
+    ? pribehyRaw.filter((p) => !jeHolandskyVanaheimText(`${p.nadpis} ${p.obsah}`))
+    : pribehyRaw;
+  const udalosti = prepis
+    ? udalostiRaw.filter((u) => !jeHolandskyVanaheimText(`${u.nazev} ${u.popis ?? ""}`))
+    : udalostiRaw;
+
   const kratkyPribeh = pribehy.length > 0
     ? zkratit(pribehy[0].obsah, MAX_DELKA_PRIBEHU)
-    : (interpret.historie ? zkratit(interpret.historie, MAX_DELKA_PRIBEHU) : null);
+    : (historie ? zkratit(historie, MAX_DELKA_PRIBEHU) : null);
 
   return NextResponse.json(
     {
@@ -176,7 +198,7 @@ export async function GET(req: NextRequest) {
       pribehy: pribehy.map((p) => ({ nadpis: p.nadpis, obsah: p.obsah })),
       udalosti: udalosti.map((u) => ({ nazev: u.nazev, datum: u.datum, popis: u.popis })),
       sestava,
-      historie: interpret.historie ?? "",
+      historie,
       kratkyPribeh: kratkyPribeh ?? "",
     },
     {
