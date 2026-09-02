@@ -12,7 +12,7 @@ import { najdiVazby } from "@/lib/actions/spolecne";
 export default async function HudebnikDetail({ params }: { params: { id: string } }) {
   const hudebnik = await prisma.hudebnik.findUnique({
     where: { id: params.id },
-    include: { clenstvi: { include: { interpret: true } }, orderBy: { obdobiOd: "asc" } },
+    include: { clenstvi: { include: { interpret: true }, orderBy: { obdobiOd: "asc" } } },
   });
   if (!hudebnik) notFound();
 
