@@ -6,20 +6,12 @@
 //
 // Request:
 // GET /api/public/kapela?jmeno=<nazev interpreta>&skladba=<nazev skladby>
-//
-// Response:
-// { "nalezena": true, "nazev": "...",
-//   "pribehy": [{ "nadpis", "obsah" }],
-//   "udalosti": [{ "nazev", "datum", "popis" }],
-//   "sestava": [{ "jmeno", "role", "nastroj", "obdobiOd", "obdobiDo" }],
-//   "historie": "...", "kratkyPribeh": "..." }
-// { "nalezena": false }
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-  jeHolandskyVanaheimText,
-  maNasaditCeskehoVanaheima,
+  jeCiziVanaheimText,
+  jeVanaheim,
   VANAHEIM_HISTORIE_CZ,
   VANAHEIM_SESTAVA_CZ,
 } from "@/lib/homonyma/vanaheim";
@@ -75,6 +67,14 @@ async function vyberInterpreta(
   skladba: string | null,
 ) {
   if (kandidati.length === 0) return null;
+  if (jeVanaheim(kandidati[0]?.nazev)) {
+    const cesky = kandidati.find(
+      (k) => /česko|cesko|czechia|czech/i.test(k.zeme ?? "") || /chlumec/i.test(k.mesto ?? ""),
+    );
+    if (cesky) return cesky;
+    const bezCiziny = kandidati.find((k) => !jeCiziVanaheimText(`${k.zeme ?? ""} ${k.mesto ?? ""} ${k.historie ?? ""}`));
+    return bezCiziny ?? kandidati[0];
+  }
   if (kandidati.length === 1) return kandidati[0];
 
   if (skladba) {
@@ -96,15 +96,6 @@ async function vyberInterpreta(
       i.alba.some((a) => normalizuj(a.album.nazev) === hledana),
     );
     if (podleAlba) return kandidati.find((k) => k.id === podleAlba.id) ?? podleAlba;
-  }
-
-  const cesky = kandidati.find(
-    (k) =>
-      /česko|cesko|czechia|czech/i.test(k.zeme ?? "") ||
-      /chlumec/i.test(k.mesto ?? ""),
-  );
-  if (cesky && skladba && maNasaditCeskehoVanaheima({ nazevInterpreta: cesky.nazev, skladba })) {
-    return cesky;
   }
 
   return kandidati[0];
@@ -169,22 +160,15 @@ export async function GET(req: NextRequest) {
     najdiSestavu(interpret.id),
   ]);
 
-  const prepis = maNasaditCeskehoVanaheima({
-    nazevInterpreta: interpret.nazev,
-    skladba,
-    historie: interpret.historie,
-    zeme: interpret.zeme,
-    mesto: interpret.mesto,
-  });
-
-  const historie = prepis ? VANAHEIM_HISTORIE_CZ : (interpret.historie ?? "");
-  const sestavaHolandska = sestavaRaw.some((c) => jeHolandskyVanaheimText(c.jmeno));
-  const sestava = prepis && (sestavaHolandska || sestavaRaw.length === 0) ? VANAHEIM_SESTAVA_CZ : sestavaRaw;
-  const pribehy = prepis
-    ? pribehyRaw.filter((p) => !jeHolandskyVanaheimText(`${p.nadpis} ${p.obsah}`))
+  const ceskyVanaheim = jeVanaheim(interpret.nazev);
+  const historie = ceskyVanaheim ? VANAHEIM_HISTORIE_CZ : (interpret.historie ?? "");
+  const sestavaCizi = sestavaRaw.some((c) => jeCiziVanaheimText(c.jmeno));
+  const sestava = ceskyVanaheim && (sestavaCizi || sestavaRaw.length === 0) ? VANAHEIM_SESTAVA_CZ : sestavaRaw;
+  const pribehy = ceskyVanaheim
+    ? pribehyRaw.filter((p) => !jeCiziVanaheimText(`${p.nadpis} ${p.obsah}`))
     : pribehyRaw;
-  const udalosti = prepis
-    ? udalostiRaw.filter((u) => !jeHolandskyVanaheimText(`${u.nazev} ${u.popis ?? ""}`))
+  const udalosti = ceskyVanaheim
+    ? udalostiRaw.filter((u) => !jeCiziVanaheimText(`${u.nazev} ${u.popis ?? ""}`))
     : udalostiRaw;
 
   const kratkyPribeh = pribehy.length > 0
