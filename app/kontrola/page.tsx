@@ -9,16 +9,21 @@ import {
   urovenDuveryPriorita,
   urovenDuveryZeZdroje,
 } from "@/lib/constants";
+import { prehledBezZdroje } from "@/lib/bez-zdroje";
+import Link from "next/link";
 
 export const maxDuration = 60;
 
 export default async function KontrolaPage() {
-  const [zbyva, pribehyHotovo, udalostiHotovo, featKOprave] = await Promise.all([
+  const [zbyva, pribehyHotovo, udalostiHotovo, featKOprave, bezZdroje] = await Promise.all([
     pocetCekajicichNaWhitelist(),
     pocetSWhitelistem("Pribeh"),
     pocetSWhitelistem("Udalost"),
     pocetFeatKOprave(),
+    prehledBezZdroje(8),
   ]);
+
+  const celkemBezZdroje = Object.values(bezZdroje.pocty).reduce((a, b) => a + b, 0);
 
   return (
     <div className="space-y-6">
@@ -31,6 +36,30 @@ export default async function KontrolaPage() {
             : `${zbyva} příběhů a událostí čeká na rozhodnutí systému.`}
         </p>
       </div>
+
+      <IndexCard label="Bez zdroje (všechny entity)">
+        {celkemBezZdroje === 0 ? (
+          <p className="text-muted text-sm">Nic nechybí.</p>
+        ) : (
+          <>
+            <p className="text-muted text-xs font-mono mb-3">
+              {Object.entries(bezZdroje.pocty)
+                .map(([typ, n]) => `${typ} ${n}`)
+                .join(" · ")}
+            </p>
+            <ul className="space-y-2">
+              {bezZdroje.vzorek.map((r) => (
+                <li key={`${r.typ}:${r.id}`} className="flex items-center justify-between text-sm border-b border-line/60 pb-2 gap-3">
+                  <Link href={r.href} className="text-paper hover:text-accent truncate">
+                    {r.nazev}
+                  </Link>
+                  <span className="tab-label shrink-0">{r.label}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </IndexCard>
 
       <IndexCard label="Ověřit všechna data">
         <p className="text-muted text-sm mb-3">
