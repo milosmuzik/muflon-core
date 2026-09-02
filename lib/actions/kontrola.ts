@@ -126,21 +126,26 @@ export async function spustitDoplneniKatalogu(
     revalidatePath("/");
     return vysledek;
   } catch (e) {
-    return { zpracovano: 0, doplneno: 0, zdroje: 0, chyby: [(e as Error).message] };
+    return { zpracovano: 0, doplneno: 0, zdroje: 0, polozky: [], chyby: [(e as Error).message] };
   }
 }
 
 export async function spustitDoplneniZaznamu(
   typ: "Hudebnik" | "Album",
   id: string
-): Promise<{ ok: boolean; text: string }> {
+): Promise<{ ok: boolean; text: string; zmeny: string[]; zdroje: string[] }> {
   try {
     const r = typ === "Hudebnik" ? await doplnitHudebnika(id) : await doplnitAlbum(id);
     revalidatePath(typ === "Hudebnik" ? `/hudebnici/${id}` : `/alba/${id}`);
     revalidatePath("/kontrola");
-    if (!r.doplneno) return { ok: true, text: "Nic nového se nenašlo. Záznam zůstává." };
-    return { ok: true, text: `Doplněno, zdrojů +${r.zdroje}. Nic se nemazalo.` };
+    const nic = r.zmeny.length === 0 && r.zdroje.length === 0;
+    return {
+      ok: true,
+      text: nic ? "Nic nového se nenašlo. Záznam zůstává." : `Našlo se u ${r.nazev}:`,
+      zmeny: r.zmeny,
+      zdroje: r.zdroje,
+    };
   } catch (e) {
-    return { ok: false, text: (e as Error).message };
+    return { ok: false, text: (e as Error).message, zmeny: [], zdroje: [] };
   }
 }
