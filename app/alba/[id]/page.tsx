@@ -5,6 +5,7 @@ import IndexCard from "@/components/IndexCard";
 import ZdrojeSekce from "@/components/ZdrojeSekce";
 import VazbySekce from "@/components/VazbySekce";
 import HistorieSekce from "@/components/HistorieSekce";
+import DoplnitZaznamTlacitko from "@/components/DoplnitZaznamTlacitko";
 import { upravitAlbum } from "@/lib/actions/alba";
 import { najdiVazby } from "@/lib/actions/spolecne";
 
@@ -62,6 +63,10 @@ export default async function AlbumDetail({ params }: { params: { id: string } }
         </div>
 
         <div className="space-y-5">
+          <IndexCard label="Najít další data">
+            <p className="text-muted text-xs mb-3">Doplní prázdná pole a zdroje. Album nesmaže.</p>
+            <DoplnitZaznamTlacitko typ="Album" id={album.id} />
+          </IndexCard>
           <IndexCard label="Upravit záznam">
             <form action={upravitAlbum.bind(null, album.id)} className="space-y-2 text-sm">
               <input name="nazev" defaultValue={album.nazev} className="w-full bg-ink border border-line rounded-sm px-2 py-1.5 text-paper focus-ring" />

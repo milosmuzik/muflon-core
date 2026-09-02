@@ -5,13 +5,14 @@ import IndexCard from "@/components/IndexCard";
 import ZdrojeSekce from "@/components/ZdrojeSekce";
 import VazbySekce from "@/components/VazbySekce";
 import HistorieSekce from "@/components/HistorieSekce";
+import DoplnitZaznamTlacitko from "@/components/DoplnitZaznamTlacitko";
 import { upravitHudebnika } from "@/lib/actions/hudebnici";
 import { najdiVazby } from "@/lib/actions/spolecne";
 
 export default async function HudebnikDetail({ params }: { params: { id: string } }) {
   const hudebnik = await prisma.hudebnik.findUnique({
     where: { id: params.id },
-    include: { clenstvi: { include: { interpret: true }, orderBy: { obdobiOd: "asc" } } },
+    include: { clenstvi: { include: { interpret: true } }, orderBy: { obdobiOd: "asc" } },
   });
   if (!hudebnik) notFound();
 
@@ -61,6 +62,10 @@ export default async function HudebnikDetail({ params }: { params: { id: string 
         </div>
 
         <div className="space-y-5">
+          <IndexCard label="Najít další data">
+            <p className="text-muted text-xs mb-3">Doplní prázdná pole a zdroje. Záznam nesmaže.</p>
+            <DoplnitZaznamTlacitko typ="Hudebnik" id={hudebnik.id} />
+          </IndexCard>
           <IndexCard label="Upravit záznam">
             <form action={upravitHudebnika.bind(null, hudebnik.id)} className="space-y-2 text-sm">
               <input name="jmeno" defaultValue={hudebnik.jmeno} className="w-full bg-ink border border-line rounded-sm px-2 py-1.5 text-paper focus-ring" />
