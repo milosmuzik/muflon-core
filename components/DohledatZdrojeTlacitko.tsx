@@ -3,7 +3,7 @@
 import { useFormState, useFormStatus } from "react-dom";
 import { spustitDohledaniRucne } from "@/lib/actions/kontrola";
 
-const pocatecniStav = { zkontrolovano: 0, nalezeno: 0, smazano: 0, chyby: [] as string[] };
+const pocatecniStav = { zkontrolovano: 0, nalezeno: 0, smazano: 0, preskocenoKvota: 0, chyby: [] as string[] };
 
 function TlacitkoOdeslat() {
   const { pending } = useFormStatus();
@@ -29,6 +29,7 @@ export default function DohledatZdrojeTlacitko() {
         <div className="mt-3 text-sm space-y-1">
           <p className="text-paper">
             Zkontrolováno: {stav.zkontrolovano} · Nalezen zdroj: {stav.nalezeno} · Smazáno bez zdroje: {stav.smazano}
+            {stav.preskocenoKvota > 0 ? ` · Přeskočeno (kvóta): ${stav.preskocenoKvota}` : ""}
           </p>
           {stav.chyby.length > 0 && (
             <ul className="text-rust text-xs space-y-0.5">

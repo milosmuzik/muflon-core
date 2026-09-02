@@ -58,6 +58,7 @@ export default function AutomatickaRevizeTlacitko() {
         setStav(soucet);
         setDavka((n) => n + 1);
         if (vysledek.hotovo) break;
+        if (vysledek.chyby.some((c) => /kvóta|429|RESOURCE_EXHAUSTED/i.test(c))) break;
         if (vysledek.chyby.length > 4) break;
       }
     } finally {
