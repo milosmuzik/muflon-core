@@ -24,16 +24,114 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Instalace knihoven
+      - name: Instalace závislostí a testovacích nástrojů
         run: |
-          pip install google-genai PyGithub
+          pip install google-genai PyGithub pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Zpracování úlohy modelem Gemini
+      - name: Zpracování kódu, spuštění testů a zápis
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COMMENT_BODY: ${{ github.event.comment.body }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          python - << 'EOF'
+          import os
+          import re
+          import subprocess
+          import time
+          from google import genai
+          from github import Github
+
+          user_prompt = os.environ.get("COMMENT_BODY").replace("/gemini", "").strip()
+          issue_num = os.environ.get("ISSUE_NUMBER")
+
+          # 1. Zmapování struktury projektu
+          file_tree = []
+          for root, dirs, files in os.walk("."):
+              if ".git" in dirs:
+                  dirs.remove(".git")
+              for f in files:
+                  rel_path = os.path.relpath(os.path.join(root, f), ".")
+                  file_tree.append(rel_path)
+          tree_str = "\n".join(file_tree[:100])
+
+          system_instruction = f"""Jsi autonomní softwarový inženýr.
+          Struktura projektu:
+          {tree_str}
+
+          Vrať výstup POUZE ve formátu bloků souborů takto:
+          FILE: cesta/k/souboru.pripona
+          ```
+          kompletní obsah souboru
+          ```
+          Můžeš vytvořit i testovací soubory (např. do složky tests/).
+          Nevracej žádný jiný doprovodný text.
+          """
+
+          client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+          response = client.models.generate_content(
+              model="gemini-3.6-flash",
+              contents=f"Instrukce:\n{system_instruction}\n\nPožadavek: {user_prompt}"
+          )
+
+          output_text = response.text.strip()
+          pattern = r"FILE:\s*([^\n\r]+)\s*```[\w]*\n(.*?)```"
+          matches = re.findall(pattern, output_text, re.DOTALL)
+
+          gh = Github(os.environ.get("GITHUB_TOKEN"))
+          repo = gh.get_repo(os.environ.get("GITHUB_REPOSITORY"))
+          issue = repo.get_issue(int(issue_num))
+
+          if not matches:
+              issue.create_comment("❌ Nepodařilo se rozpoznat žádné soubory z odpovědi:\n\n" + output_text)
+              exit(0)
+
+          # 2. Vytvoření větve a zápis souborů
+          branch_name = f"gemini-task-{issue_num}-{int(time.time())}"
+          subprocess.run(["git", "checkout", "-b", branch_name], check=True)
+          subprocess.run(["git", "config", "user.name", "Gemini Bot"], check=True)
+          subprocess.run(["git", "config", "user.email", "gemini-bot@actions.local"], check=True)
+
+          changed_files = []
+          for file_path, content in matches:
+              file_path = file_path.strip()
+              os.makedirs(os.path.dirname(file_path) or ".", exist_ok=True)
+              with open(file_path, "w", encoding="utf-8") as f:
+                  f.write(content)
+              subprocess.run(["git", "add", file_path], check=True)
+              changed_files.append(file_path)
+
+          # 3. Spuštění pytest testů přímo v běžícím prostředí
+          test_result = subprocess.run(["pytest", "-v"], capture_output=True, text=True)
+          test_status = "✅ Testy úspěšně prošly!" if test_result.returncode == 0 else "⚠️ Testy selhaly nebo nebyly nalezeny."
+          test_log = test_result.stdout or test_result.stderr or "Žádný výstup z testů."
+
+          subprocess.run(["git", "commit", "-m", f"Gemini: {user_prompt[:50]}"], check=True)
+          subprocess.run(["git", "push", "origin", branch_name], check=True)
+
+          # 4. Vytvoření Pull Requestu a report do Issue
+          pr = repo.create_pull(
+              title=f"Gemini: Změny pro #{issue_num}",
+              body=f"Automatické změny podle zadání v #{issue_num}:\n> {user_prompt}\n\nUpravené soubory:\n- " + "\n- ".join(changed_files),
+              head=branch_name,
+              base=repo.default_branch
+          )
+
+          comment_body = f"""### {test_status}
+          **Otevřen Pull Request:** #{pr.number} ({pr.html_url})
+
+          <details>
+          <summary>Výsledky testů (klikněte pro rozbalení)</summary>
+
+          ```text
+          {test_log[:1500]}
+          ```
+          </details>
+          """
+          issue.create_comment(comment_body)
+          EOF
         run: |
           python - << 'EOF'
           import os
