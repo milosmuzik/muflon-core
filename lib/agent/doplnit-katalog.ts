@@ -10,10 +10,20 @@ import { rozbalRedirect } from "@/lib/agent/redirect";
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent";
 
+export type RadekDoplneni = {
+  typ: "Hudebnik" | "Album";
+  id: string;
+  nazev: string;
+  href: string;
+  zmeny: string[];
+  zdroje: string[];
+};
+
 export type VysledekDoplneni = {
   zpracovano: number;
   doplneno: number;
   zdroje: number;
+  polozky: RadekDoplneni[];
   chyby: string[];
 };
 
@@ -58,8 +68,8 @@ async function zeptatSeGemini(prompt: string): Promise<Nalez> {
   }
 }
 
-async function ulozZdroje(typ: string, id: string, zdroje: Nalez["zdroje"]) {
-  let pridano = 0;
+async function ulozZdroje(typ: string, id: string, zdroje: Nalez["zdroje"]): Promise<string[]> {
+  const pridane: string[] = [];
   for (const z of zdroje || []) {
     if (!z?.url || !z?.nazev) continue;
     const url = await rozbalRedirect(String(z.url));
@@ -68,28 +78,37 @@ async function ulozZdroje(typ: string, id: string, zdroje: Nalez["zdroje"]) {
     });
     if (existuje) continue;
     const kategorie = z.kategorie || "orientacni";
+    const nazev = nazevZeZdroje(url, z.nazev);
     await prisma.zdroj.create({
       data: {
         cilovyTyp: typ,
         cilovyId: id,
-        nazev: nazevZeZdroje(url, z.nazev),
+        nazev,
         url,
         kategorie,
         uroverDuvery: urovenDuveryZeZdroje(kategorie, url),
         poznamka: POZNAMKA_AI_ROZSIRENI,
       },
     });
-    pridano++;
+    pridane.push(url ? `${nazev} (${url})` : nazev);
   }
-  return pridano;
+  return pridane;
 }
 
-export async function doplnitHudebnika(id: string): Promise<{ doplneno: boolean; zdroje: number }> {
+export async function doplnitHudebnika(id: string): Promise<RadekDoplneni> {
+  const prazdny: RadekDoplneni = {
+    typ: "Hudebnik",
+    id,
+    nazev: "",
+    href: `/hudebnici/${id}`,
+    zmeny: [],
+    zdroje: [],
+  };
   const h = await prisma.hudebnik.findUnique({
     where: { id },
     include: { clenstvi: { include: { interpret: true } } },
   });
-  if (!h) return { doplneno: false, zdroje: 0 };
+  if (!h) return prazdny;
 
   const kapely = h.clenstvi.map((c) => c.interpret.nazev).join(", ");
   const nalez = await zeptatSeGemini(
@@ -99,27 +118,46 @@ Vrať POUZE JSON: {"pseudonymy":null,"datumNarozeni":null,"datumUmrti":null,"poz
   );
 
   const data: Record<string, string> = {};
-  if (!h.pseudonymy && nalez.pseudonymy) data.pseudonymy = String(nalez.pseudonymy);
-  if (!h.datumNarozeni && nalez.datumNarozeni) data.datumNarozeni = String(nalez.datumNarozeni);
-  if (!h.datumUmrti && nalez.datumUmrti) data.datumUmrti = String(nalez.datumUmrti);
-  if (!h.poznamka && nalez.poznamka) data.poznamka = String(nalez.poznamka);
+  const zmeny: string[] = [];
+  if (!h.pseudonymy && nalez.pseudonymy) {
+    data.pseudonymy = String(nalez.pseudonymy);
+    zmeny.push(`pseudonymy: ${data.pseudonymy}`);
+  }
+  if (!h.datumNarozeni && nalez.datumNarozeni) {
+    data.datumNarozeni = String(nalez.datumNarozeni);
+    zmeny.push(`narození: ${data.datumNarozeni}`);
+  }
+  if (!h.datumUmrti && nalez.datumUmrti) {
+    data.datumUmrti = String(nalez.datumUmrti);
+    zmeny.push(`úmrtí: ${data.datumUmrti}`);
+  }
+  if (!h.poznamka && nalez.poznamka) {
+    data.poznamka = String(nalez.poznamka);
+    zmeny.push(`poznámka: ${data.poznamka}`);
+  }
 
-  if (Object.keys(data).length) {
-    await prisma.hudebnik.update({ where: { id }, data });
-  }
+  if (Object.keys(data).length) await prisma.hudebnik.update({ where: { id }, data });
   const zdroje = await ulozZdroje("Hudebnik", id, nalez.zdroje);
-  if (Object.keys(data).length || zdroje) {
-    await zapisHistorii("Hudebnik", id, "upraveno", "Doplněno AI (bez mazání)");
+  if (zmeny.length || zdroje.length) {
+    await zapisHistorii("Hudebnik", id, "upraveno", `Doplněno: ${[...zmeny, ...zdroje].join("; ")}`);
   }
-  return { doplneno: Object.keys(data).length > 0 || zdroje > 0, zdroje };
+  return { typ: "Hudebnik", id, nazev: h.jmeno, href: `/hudebnici/${id}`, zmeny, zdroje };
 }
 
-export async function doplnitAlbum(id: string): Promise<{ doplneno: boolean; zdroje: number }> {
+export async function doplnitAlbum(id: string): Promise<RadekDoplneni> {
+  const prazdny: RadekDoplneni = {
+    typ: "Album",
+    id,
+    nazev: "",
+    href: `/alba/${id}`,
+    zmeny: [],
+    zdroje: [],
+  };
   const a = await prisma.album.findUnique({
     where: { id },
     include: { interpreti: { include: { interpret: true } } },
   });
-  if (!a) return { doplneno: false, zdroje: 0 };
+  if (!a) return prazdny;
 
   const kapely = a.interpreti.map((i) => i.interpret.nazev).join(", ");
   const nalez = await zeptatSeGemini(
@@ -129,18 +167,26 @@ Vrať POUZE JSON: {"datumVydani":null,"vydavatel":null,"poznamka":null,"zdroje":
   );
 
   const data: Record<string, string> = {};
-  if (!a.datumVydani && nalez.datumVydani) data.datumVydani = String(nalez.datumVydani);
-  if (!a.vydavatel && nalez.vydavatel) data.vydavatel = String(nalez.vydavatel);
-  if (!a.poznamka && nalez.poznamka) data.poznamka = String(nalez.poznamka);
+  const zmeny: string[] = [];
+  if (!a.datumVydani && nalez.datumVydani) {
+    data.datumVydani = String(nalez.datumVydani);
+    zmeny.push(`vydání: ${data.datumVydani}`);
+  }
+  if (!a.vydavatel && nalez.vydavatel) {
+    data.vydavatel = String(nalez.vydavatel);
+    zmeny.push(`vydavatel: ${data.vydavatel}`);
+  }
+  if (!a.poznamka && nalez.poznamka) {
+    data.poznamka = String(nalez.poznamka);
+    zmeny.push(`poznámka: ${data.poznamka}`);
+  }
 
-  if (Object.keys(data).length) {
-    await prisma.album.update({ where: { id }, data });
-  }
+  if (Object.keys(data).length) await prisma.album.update({ where: { id }, data });
   const zdroje = await ulozZdroje("Album", id, nalez.zdroje);
-  if (Object.keys(data).length || zdroje) {
-    await zapisHistorii("Album", id, "upraveno", "Doplněno AI (bez mazání)");
+  if (zmeny.length || zdroje.length) {
+    await zapisHistorii("Album", id, "upraveno", `Doplněno: ${[...zmeny, ...zdroje].join("; ")}`);
   }
-  return { doplneno: Object.keys(data).length > 0 || zdroje > 0, zdroje };
+  return { typ: "Album", id, nazev: a.nazev, href: `/alba/${id}`, zmeny, zdroje };
 }
 
 export async function doplnitKatalogDavku(limit = 4): Promise<VysledekDoplneni> {
@@ -155,14 +201,15 @@ export async function doplnitKatalogDavku(limit = 4): Promise<VysledekDoplneni> 
     prisma.album.findMany({ select: { id: true, nazev: true }, orderBy: { updatedAt: "asc" } }),
   ]);
 
-  const vysledek: VysledekDoplneni = { zpracovano: 0, doplneno: 0, zdroje: 0, chyby: [] };
+  const vysledek: VysledekDoplneni = { zpracovano: 0, doplneno: 0, zdroje: 0, polozky: [], chyby: [] };
 
   for (const h of hudebnici.filter((x) => !ma.has(`Hudebnik:${x.id}`)).slice(0, limit)) {
     vysledek.zpracovano++;
     try {
       const r = await doplnitHudebnika(h.id);
-      if (r.doplneno) vysledek.doplneno++;
-      vysledek.zdroje += r.zdroje;
+      vysledek.polozky.push(r);
+      if (r.zmeny.length || r.zdroje.length) vysledek.doplneno++;
+      vysledek.zdroje += r.zdroje.length;
     } catch (e) {
       vysledek.chyby.push(`${h.jmeno}: ${(e as Error).message}`);
     }
@@ -171,8 +218,9 @@ export async function doplnitKatalogDavku(limit = 4): Promise<VysledekDoplneni> 
     vysledek.zpracovano++;
     try {
       const r = await doplnitAlbum(a.id);
-      if (r.doplneno) vysledek.doplneno++;
-      vysledek.zdroje += r.zdroje;
+      vysledek.polozky.push(r);
+      if (r.zmeny.length || r.zdroje.length) vysledek.doplneno++;
+      vysledek.zdroje += r.zdroje.length;
     } catch (e) {
       vysledek.chyby.push(`${a.nazev}: ${(e as Error).message}`);
     }

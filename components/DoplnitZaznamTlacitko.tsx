@@ -3,7 +3,7 @@
 import { useFormState, useFormStatus } from "react-dom";
 import { spustitDoplneniZaznamu } from "@/lib/actions/kontrola";
 
-const pocatek = { ok: false, text: "" };
+const pocatek = { ok: false, text: "", zmeny: [] as string[], zdroje: [] as string[] };
 
 function Tlacitko() {
   const { pending } = useFormStatus();
@@ -31,6 +31,12 @@ export default function DoplnitZaznamTlacitko({
         <Tlacitko />
       </form>
       {stav.text && <p className="text-muted text-xs mt-2">{stav.text}</p>}
+      {stav.zmeny.map((z) => (
+        <p key={z} className="text-paper text-xs mt-1">{z}</p>
+      ))}
+      {stav.zdroje.map((z) => (
+        <p key={z} className="text-muted text-xs mt-1">zdroj: {z}</p>
+      ))}
     </div>
   );
 }
