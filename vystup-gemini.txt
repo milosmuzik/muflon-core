@@ -1,0 +1,20 @@
+```python
+import math
+
+
+def vypocitej_faktorial(cislo):
+    """Vrátí faktoriál zadaného celého nezáporného čísla."""
+    if cislo < 0:
+        raise ValueError("Faktoriál nelze spočítat pro záporná čísla.")
+    return math.factorial(cislo)
+
+
+# Příklady použití
+if __name__ == "__main__":
+    try:
+        uzivatelske_cislo = int(input("Zadejte celé nezáporné číslo: "))
+        vysledek = vypocitej_faktorial(uzivatelske_cislo)
+        print(f"Faktoriál čísla {uzivatelske_cislo} je {vysledek}.")
+    except ValueError as e:
+        print(f"Chyba: Zadejte platné celé nezáporné číslo. ({e})")
+```
