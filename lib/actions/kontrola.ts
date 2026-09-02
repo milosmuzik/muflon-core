@@ -76,7 +76,7 @@ export async function spustitDohledaniRucne(
     revalidateKontrola();
     return vysledek;
   } catch (e) {
-    return { zkontrolovano: 0, nalezeno: 0, smazano: 0, chyby: [(e as Error).message] };
+    return { zkontrolovano: 0, nalezeno: 0, smazano: 0, preskocenoKvota: 0, chyby: [(e as Error).message] };
   }
 }
 
