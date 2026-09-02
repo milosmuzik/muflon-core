@@ -1,5 +1,4 @@
-const GEMINI_MODEL = "gemini-flash-lite-latest";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+import { GeminiQuotaError, geminiJeDostupne, vytahniJson, zavolejGemini } from "./gemini";
 
 export type ParsovanaKarta = {
   interpret: {
@@ -47,28 +46,10 @@ TEXT KARTY:
 """`;
 
 export async function parsovatKartu(text: string): Promise<ParsovanaKarta> {
-  const apiKlic = process.env.GEMINI_API_KEY;
-  if (!apiKlic) throw new Error("Chybí GEMINI_API_KEY.");
-
+  if (!geminiJeDostupne()) throw new GeminiQuotaError();
   const prompt = PROMPT_SABLONA.replace("{{TEXT}}", text.slice(0, 30000));
-
-  const odpoved = await fetch(`${GEMINI_URL}?key=${apiKlic}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-  });
-
-  if (!odpoved.ok) {
-    const chybaText = await odpoved.text();
-    throw new Error(`Gemini API ${odpoved.status}: ${chybaText.slice(0, 300)}`);
-  }
-
-  const data = await odpoved.json();
-  const surovyText = (data?.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? "").join("\n");
-  const ocistene = surovyText.replace(/```json/gi, "").replace(/```/g, "").trim();
-  const start = ocistene.indexOf("{");
-  const konec = ocistene.lastIndexOf("}");
-  if (start === -1 || konec === -1) throw new Error("Gemini nevrátila platný JSON.");
-
-  return JSON.parse(ocistene.slice(start, konec + 1));
+  const surovyText = await zavolejGemini(prompt, false);
+  const parsed = vytahniJson(surovyText);
+  if (!parsed || typeof parsed !== "object") throw new Error("Gemini nevrátila platný JSON.");
+  return parsed as ParsovanaKarta;
 }
