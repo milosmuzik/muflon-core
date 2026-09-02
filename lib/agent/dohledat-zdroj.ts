@@ -1,8 +1,11 @@
 import { RENOMOVANE_ZDROJE_DOMENY } from "@/lib/constants";
 import { rozbalRedirect } from "./redirect";
-
-const GEMINI_MODEL = "gemini-flash-lite-latest";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+import { GeminiQuotaError, geminiJeDostupne, vytahniJson, zavolejGemini } from "./gemini";
+import {
+  najdiAlbaNaMetalArchives,
+  najdiHudebnikaNaMetalArchives,
+  najdiKapeluNaMetalArchives,
+} from "./databaze";
 
 export type NalezenyZdroj = { nazev: string; url: string; kategorie: string } | null;
 
@@ -25,40 +28,48 @@ nebo
 {"nalezeno": false}`;
 }
 
+async function zDatabazi(nazev: string, obsah: string): Promise<NalezenyZdroj> {
+  const text = `${nazev} ${obsah}`;
+  const kapela = await najdiKapeluNaMetalArchives(nazev);
+  if (kapela) return kapela;
+
+  const album = await najdiAlbaNaMetalArchives(nazev);
+  if (album) return album.zdroj;
+
+  const hudebnik = await najdiHudebnikaNaMetalArchives(nazev);
+  if (hudebnik) return hudebnik.zdroj;
+
+  const uvozovky = text.match(/[„"]([^"„”]{2,80})["”]/);
+  if (uvozovky?.[1]) {
+    const zAlba = await najdiAlbaNaMetalArchives(uvozovky[1]);
+    if (zAlba) return zAlba.zdroj;
+    const zKapely = await najdiKapeluNaMetalArchives(uvozovky[1]);
+    if (zKapely) return zKapely;
+  }
+  return null;
+}
+
 export async function dohledatZdroj(nazev: string, obsah: string): Promise<NalezenyZdroj> {
-  const apiKlic = process.env.GEMINI_API_KEY;
-  if (!apiKlic) throw new Error("Chybí GEMINI_API_KEY.");
-
-  const odpoved = await fetch(`${GEMINI_URL}?key=${apiKlic}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: sestavPrompt(nazev, obsah) }] }],
-      tools: [{ google_search: {} }],
-    }),
-  });
-
-  if (!odpoved.ok) {
-    const chybaText = await odpoved.text();
-    throw new Error(`Gemini API ${odpoved.status}: ${chybaText.slice(0, 300)}`);
-  }
-
-  const data = await odpoved.json();
-  const surovyText = (data?.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? "").join("\n");
-  const ocistene = surovyText.replace(/```json/gi, "").replace(/```/g, "").trim();
-  const start = ocistene.indexOf("{");
-  const konec = ocistene.lastIndexOf("}");
-  if (start === -1 || konec === -1) return null;
-
   try {
-    const parsed = JSON.parse(ocistene.slice(start, konec + 1));
-    if (!parsed?.nalezeno || !parsed.url || !parsed.nazev) return null;
-    const kategorie = ["oficialni_web", "socialni_site", "media", "databaze"].includes(parsed.kategorie)
-      ? parsed.kategorie
-      : "media";
-    const url = await rozbalRedirect(String(parsed.url));
-    return { nazev: String(parsed.nazev).slice(0, 200), url, kategorie };
+    const zDb = await zDatabazi(nazev, obsah);
+    if (zDb) return zDb;
   } catch {
-    return null;
+    // databáze jen šetří kvótu – výpadek není „nenalezeno“
   }
+
+  if (!geminiJeDostupne()) throw new GeminiQuotaError();
+
+  const surovyText = await zavolejGemini(sestavPrompt(nazev, obsah), true);
+  const parsed = vytahniJson(surovyText) as {
+    nalezeno?: boolean;
+    url?: string;
+    nazev?: string;
+    kategorie?: string;
+  } | null;
+  if (!parsed?.nalezeno || !parsed.url || !parsed.nazev) return null;
+  const kategorie = ["oficialni_web", "socialni_site", "media", "databaze"].includes(parsed.kategorie ?? "")
+    ? parsed.kategorie!
+    : "media";
+  const url = await rozbalRedirect(String(parsed.url));
+  return { nazev: String(parsed.nazev).slice(0, 200), url, kategorie };
 }

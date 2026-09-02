@@ -10,11 +10,13 @@ import {
 import { zvazAutomatickeSchvaleni } from "@/lib/actions/spolecne";
 import { dohledatZdroj } from "@/lib/agent/dohledat-zdroj";
 import { smazatStavovouEntitu } from "@/lib/agent/uklid";
+import { GeminiQuotaError, jeKvotaChyba } from "@/lib/agent/gemini";
 
 export type VysledekDohledani = {
   zkontrolovano: number;
   nalezeno: number;
   smazano: number;
+  preskocenoKvota: number;
   chyby: string[];
 };
 
@@ -73,7 +75,7 @@ async function zpracujEntitu(typ: "Pribeh" | "Udalost", entita: { id: string; na
       poznamka: POZNAMKA_DOHLEDANO,
     },
   });
-  await zapisHistorii(typ, entita.id, "upraveno", `AI dohledala zdroj: ${nalez.nazev}`);
+  await zapisHistorii(typ, entita.id, "upraveno", `Dohledán zdroj: ${nalez.nazev}`);
   await zvazAutomatickeSchvaleni(typ, entita.id, uroverDuvery);
   return "nalezeno";
 }
@@ -82,31 +84,29 @@ export async function dohledatChybejiciZdroje(limitNaDavku = 5): Promise<Vyslede
   let zkontrolovano = 0;
   let nalezeno = 0;
   let smazano = 0;
+  let preskocenoKvota = 0;
   const chyby: string[] = [];
 
-  const pribehy = await entityBezZdroje("Pribeh", limitNaDavku);
-  for (const pribeh of pribehy) {
+  const fronta = [
+    ...(await entityBezZdroje("Pribeh", limitNaDavku)).map((e) => ({ typ: "Pribeh" as const, ...e })),
+    ...(await entityBezZdroje("Udalost", limitNaDavku)).map((e) => ({ typ: "Udalost" as const, ...e })),
+  ];
+
+  for (const entita of fronta) {
     zkontrolovano++;
     try {
-      const vysledek = await zpracujEntitu("Pribeh", pribeh);
+      const vysledek = await zpracujEntitu(entita.typ, entita);
       if (vysledek === "nalezeno") nalezeno++;
       if (vysledek === "smazano") smazano++;
     } catch (e) {
-      chyby.push(`Příběh „${pribeh.nazev}“: ${(e as Error).message}`);
+      if (jeKvotaChyba(e) || e instanceof GeminiQuotaError) {
+        preskocenoKvota += fronta.length - zkontrolovano + 1;
+        chyby.push("Gemini kvóta. Zbytek dávky se přeskočil, nic dalšího se nemazalo.");
+        break;
+      }
+      chyby.push(`${entita.typ === "Pribeh" ? "Příběh" : "Událost"} „${entita.nazev}“: ${(e as Error).message}`);
     }
   }
 
-  const udalosti = await entityBezZdroje("Udalost", limitNaDavku);
-  for (const udalost of udalosti) {
-    zkontrolovano++;
-    try {
-      const vysledek = await zpracujEntitu("Udalost", udalost);
-      if (vysledek === "nalezeno") nalezeno++;
-      if (vysledek === "smazano") smazano++;
-    } catch (e) {
-      chyby.push(`Událost „${udalost.nazev}“: ${(e as Error).message}`);
-    }
-  }
-
-  return { zkontrolovano, nalezeno, smazano, chyby };
+  return { zkontrolovano, nalezeno, smazano, preskocenoKvota, chyby };
 }
