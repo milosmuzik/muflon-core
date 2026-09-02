@@ -9,9 +9,7 @@ import {
 } from "@/lib/constants";
 import { rozbalRedirect } from "./redirect";
 import { jsouDuplicitni } from "./duplicity";
-
-const GEMINI_MODEL = "gemini-flash-lite-latest";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+import { GeminiQuotaError, geminiJeDostupne, jeKvotaChyba, vytahniJson, zavolejGemini } from "./gemini";
 
 const NAZVY_MESICU_2P = [
   "ledna", "února", "března", "dubna", "května", "června",
@@ -41,37 +39,9 @@ Vrať POUZE JSON pole (žádný text okolo, žádné markdown zpětné uvozovky)
 Každá položka MUSÍ mít alespoň jeden zdroj se skutečnou, dohledatelnou URL. Bez zdroje položku vynech.`;
 }
 
-async function zavolejGemini(prompt: string, apiKlic: string): Promise<string> {
-  const odpoved = await fetch(`${GEMINI_URL}?key=${apiKlic}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      tools: [{ google_search: {} }],
-    }),
-  });
-
-  if (!odpoved.ok) {
-    const chybaText = await odpoved.text();
-    throw new Error(`Gemini API ${odpoved.status}: ${chybaText.slice(0, 300)}`);
-  }
-
-  const data = await odpoved.json();
-  const casti = data?.candidates?.[0]?.content?.parts ?? [];
-  return casti.map((c: { text?: string }) => c.text ?? "").join("\n");
-}
-
-function vytahniJson(text: string): NavrzenaUdalost[] {
-  const ocistene = text.replace(/```json/gi, "").replace(/```/g, "").trim();
-  const start = ocistene.indexOf("[");
-  const konec = ocistene.lastIndexOf("]");
-  if (start === -1 || konec === -1) return [];
-  try {
-    const parsed = JSON.parse(ocistene.slice(start, konec + 1));
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+function vytahniPole(text: string): NavrzenaUdalost[] {
+  const parsed = vytahniJson(text);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 export type VysledekAgenta = {
@@ -83,17 +53,12 @@ export type VysledekAgenta = {
 };
 
 export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<VysledekAgenta> {
-  const apiKlic = process.env.GEMINI_API_KEY;
-  if (!apiKlic) {
-    throw new Error("Chybí GEMINI_API_KEY v proměnných prostředí.");
-  }
+  if (!geminiJeDostupne()) throw new GeminiQuotaError("Chybí GEMINI_API_KEY nebo je kvóta vyčerpaná.");
 
   let navrzeno = 0;
   let preskoceno = 0;
   let bezDostatecnehoZdroje = 0;
   const chyby: string[] = [];
-
-  console.log(`[agent] Start – zpracovávám ${pocetDni} dní dopředu.`);
 
   for (let i = 0; i < pocetDni; i++) {
     const datum = new Date();
@@ -101,37 +66,17 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
     const den = datum.getDate();
     const mesic = datum.getMonth() + 1;
     const mmdd = `${String(mesic).padStart(2, "0")}-${String(den).padStart(2, "0")}`;
-
-    console.log(`[agent] Den ${mmdd}: volám Gemini...`);
     try {
-      const surovaOdpoved = await zavolejGemini(sestavPrompt(den, mesic), apiKlic);
-      console.log(`[agent] Den ${mmdd}: odpověď přijata (${surovaOdpoved.length} znaků).`);
-      const polozky = vytahniJson(surovaOdpoved);
-      console.log(`[agent] Den ${mmdd}: rozpoznáno ${polozky.length} položek v JSON.`);
-
+      const surovaOdpoved = await zavolejGemini(sestavPrompt(den, mesic), true);
+      const polozky = vytahniPole(surovaOdpoved);
       for (const polozka of polozky) {
         if (!polozka.nazev || !polozka.zdroje?.length) continue;
-
-        // Porovnání podle podstatných slov, ne jen prvních 20 znaků -
-        // Gemini stejnou událost při různých bězích často přeformuluje
-        // ("Vydání alba X" vs. "Vydání přelomového alba X"), takže prostá
-        // shoda předpony duplicitu často nechytila.
-        const existujiciTentoDen = await prisma.udalost.findMany({
-          where: { datum: mmdd },
-          select: { nazev: true },
-        });
+        const existujiciTentoDen = await prisma.udalost.findMany({ where: { datum: mmdd }, select: { nazev: true } });
         if (existujiciTentoDen.some((u) => jsouDuplicitni(u.nazev, polozka.nazev))) {
           preskoceno++;
           continue;
         }
-
         const typ = ["vyroci_alba", "narozeniny", "umrti", "jina"].includes(polozka.typ) ? polozka.typ : "jina";
-
-        // Zdroje se vyhodnotí PŘED vytvořením záznamu (rozbalení Google
-        // redirectu + reálná URL, ne to, co si Gemini vymyslela). Pokud po
-        // téhle kontrole žádný nestačí na automatické schválení, záznam se
-        // vůbec nezakládá - jinak by se donekonečna hromadily položky bez
-        // šance na schválení, které stejně nikdo ručně nereviduje.
         const vyhodnoceneZdroje: { nazev: string; url: string; kategorie: string; uroverDuvery: string }[] = [];
         let nejvyssiUroven = 0;
         for (const zdroj of polozka.zdroje.slice(0, 5)) {
@@ -147,12 +92,10 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
             uroverDuvery,
           });
         }
-
         if (nejvyssiUroven < AUTOSCHVALENI_OD_UROVNE) {
           bezDostatecnehoZdroje++;
           continue;
         }
-
         const novaUdalost = await prisma.udalost.create({
           data: {
             nazev: polozka.nazev.slice(0, 200),
@@ -165,7 +108,6 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
             zverejnitNaSitich: false,
           },
         });
-
         for (const zdroj of vyhodnoceneZdroje) {
           await prisma.zdroj.create({
             data: {
@@ -179,25 +121,15 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
             },
           });
         }
-
-        await zapisHistorii("Udalost", novaUdalost.id, "vytvoreno", "Navrženo AI agentem (Gemini + web search)");
-        await zapisHistorii(
-          "Udalost",
-          novaUdalost.id,
-          "zmena_stavu",
-          "Automaticky schváleno – nejméně jeden zdroj s dostatečnou důvěrou"
-        );
-
+        await zapisHistorii("Udalost", novaUdalost.id, "vytvoreno", "Navrženo AI agentem (web search)");
+        await zapisHistorii("Udalost", novaUdalost.id, "zmena_stavu", "Automaticky schváleno – nejméně jeden zdroj s dostatečnou důvěrou");
         navrzeno++;
       }
     } catch (e) {
-      console.error(`[agent] CHYBA den ${mmdd}:`, e);
       chyby.push(`${mmdd}: ${(e as Error).message}`);
+      if (jeKvotaChyba(e)) break;
     }
   }
 
-  console.log(
-    `[agent] Hotovo. Navrženo: ${navrzeno}, přeskočeno (duplicita): ${preskoceno}, bez dostatečného zdroje: ${bezDostatecnehoZdroje}, chyb: ${chyby.length}`
-  );
   return { zpracovanoDni: pocetDni, navrzeno, preskoceno, bezDostatecnehoZdroje, chyby };
 }
