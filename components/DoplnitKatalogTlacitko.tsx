@@ -2,8 +2,15 @@
 
 import { useFormState, useFormStatus } from "react-dom";
 import { spustitDoplneniKatalogu } from "@/lib/actions/kontrola";
+import type { VysledekDoplneni } from "@/lib/agent/doplnit-katalog";
 
-const pocatek = { zpracovano: 0, doplneno: 0, zdroje: 0, polozky: [] as { typ: string; nazev: string; href: string; zmeny: string[]; zdroje: string[] }[], chyby: [] as string[] };
+const pocatek: VysledekDoplneni = {
+  zpracovano: 0,
+  doplneno: 0,
+  zdroje: 0,
+  polozky: [],
+  chyby: [],
+};
 
 function Tlacitko() {
   const { pending } = useFormStatus();
@@ -31,7 +38,7 @@ export default function DoplnitKatalogTlacitko() {
           </p>
           <ul className="space-y-2 text-sm">
             {stav.polozky.map((p) => (
-              <li key={`${p.typ}:${p.href}`} className="border-b border-line/60 pb-2">
+              <li key={`${p.typ}:${p.id}`} className="border-b border-line/60 pb-2">
                 <a href={p.href} className="text-accent hover:underline">
                   {p.typ === "Hudebnik" ? "Hudebník" : "Album"}: {p.nazev}
                 </a>
