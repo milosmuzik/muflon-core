@@ -2,17 +2,17 @@ export type NalezenyZdroj = { nazev: string; url: string; kategorie: string };
 
 const USER_AGENT = "MuflonCore/0.1 (https://muflon-core.vercel.app; redakce Rádia Muflon)";
 
-function normalizuj(s: string): string {
+export function normalizuj(s: string): string {
   return s
     .normalize("NFD")
-    .replace(/\p{M}/gu, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/&/g, " and ")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
 
-function shodaNazvu(a: string, b: string): boolean {
+export function shodaNazvu(a: string, b: string): boolean {
   return normalizuj(a) === normalizuj(b);
 }
 
@@ -167,5 +167,3 @@ export async function faktaZMusicBrainzAlbum(
     zdroj: { nazev: "MusicBrainz", url: `https://musicbrainz.org/release/${hit.id}`, kategorie: "databaze" },
   };
 }
-
-export { shodaNazvu, normalizuj };
