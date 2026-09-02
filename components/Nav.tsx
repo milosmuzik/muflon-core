@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { odhlasit } from "@/lib/actions/auth";
 
 const POLOZKY = [
   { href: "/", label: "Přehled" },
@@ -22,7 +23,7 @@ export default function Nav() {
           <span className="font-display text-xl text-paper">Muflon Core</span>
           <span className="tab-label">znalostní síť</span>
         </Link>
-        <nav className="flex flex-wrap gap-1 text-sm">
+        <nav className="flex flex-wrap gap-1 text-sm items-center">
           {POLOZKY.map((p) => (
             <Link
               key={p.href}
@@ -32,6 +33,13 @@ export default function Nav() {
               {p.label}
             </Link>
           ))}
+          {process.env.AUTH_PASSWORD ? (
+            <form action={odhlasit}>
+              <button className="px-3 py-1.5 rounded-sm text-muted hover:text-paper hover:bg-raised transition-colors focus-ring">
+                Odhlásit
+              </button>
+            </form>
+          ) : null}
         </nav>
       </div>
     </header>
