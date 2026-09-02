@@ -5,7 +5,7 @@
 // živého logu o krátký text ke hrajícímu interpretovi.
 //
 // Request:
-// GET /api/public/kapela?jmeno=<nazev interpreta>
+// GET /api/public/kapela?jmeno=<nazev interpreta>&skladba=<nazev skladby>
 //
 // Response:
 // { "nalezena": true, "nazev": "...",
@@ -24,15 +24,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// Endpoint je veřejný a čte se z libovolné domény (web Rádia Muflon běží
-// jinde než muflon-core), proto CORS povolujeme pro kohokoliv.
 const CORS_HEADERS = { "Access-Control-Allow-Origin": "*" };
-
-// Kolik znaků smí mít vrácený "krátký" příběh - jde o stručnou ukázku,
-// ne celý článek.
 const MAX_DELKA_PRIBEHU = 500;
-
-// Stavy příběhu, které jsou dost prověřené na to, aby šly ven veřejně.
 const VEREJNE_STAVY_PRIBEHU = ["schvaleno", "publikovano"];
 
 function zkratit(text: string, max: number): string {
@@ -44,32 +37,74 @@ function zkratit(text: string, max: number): string {
   return `${zaklad.trim()}…`;
 }
 
-async function najdiInterpreta(jmeno: string) {
-  const exaktni = await prisma.interpret.findFirst({
+function normalizuj(text: string): string {
+  return text.trim().toLowerCase();
+}
+
+async function kandidatiPodleJmena(jmeno: string) {
+  const presni = await prisma.interpret.findMany({
     where: { nazev: { equals: jmeno, mode: "insensitive" } },
   });
-  if (exaktni) return exaktni;
+  if (presni.length > 0) return presni;
 
-  // Zkus i alternativní názvy (JSON pole stringů) - metadata ze streamu
-  // často používají jiný tvar jména než hlavní záznam v databázi.
   const sAlternativami = await prisma.interpret.findMany({
     where: { alternativniNazvy: { not: null } },
     select: { id: true, alternativniNazvy: true },
   });
-  const cil = jmeno.trim().toLowerCase();
-  const shoda = sAlternativami.find((i) => {
+  const cil = normalizuj(jmeno);
+  const shody = sAlternativami.filter((i) => {
     try {
       const alt = JSON.parse(i.alternativniNazvy ?? "[]");
-      return Array.isArray(alt) && alt.some((a) => String(a).trim().toLowerCase() === cil);
+      return Array.isArray(alt) && alt.some((a) => normalizuj(String(a)) === cil);
     } catch {
       return false;
     }
   });
-  if (shoda) return prisma.interpret.findUnique({ where: { id: shoda.id } });
+  if (shody.length > 0) {
+    return prisma.interpret.findMany({ where: { id: { in: shody.map((s) => s.id) } } });
+  }
 
-  return prisma.interpret.findFirst({
+  const obsahuje = await prisma.interpret.findMany({
     where: { nazev: { contains: jmeno, mode: "insensitive" } },
+    take: 10,
   });
+  return obsahuje;
+}
+
+async function vyberInterpreta(
+  kandidati: Awaited<ReturnType<typeof kandidatiPodleJmena>>,
+  skladba: string | null,
+) {
+  if (kandidati.length === 0) return null;
+  if (kandidati.length === 1 || !skladba) return kandidati[0];
+
+  const hledana = normalizuj(skladba);
+  const sRepertoarem = await prisma.interpret.findMany({
+    where: { id: { in: kandidati.map((k) => k.id) } },
+    include: {
+      skladby: { include: { skladba: true } },
+      alba: { include: { album: true } },
+    },
+  });
+
+  const podleSkladby = sRepertoarem.find((i) =>
+    i.skladby.some((s) => normalizuj(s.skladba.nazev) === hledana),
+  );
+  if (podleSkladby) return kandidati.find((k) => k.id === podleSkladby.id) ?? podleSkladby;
+
+  const podleAlba = sRepertoarem.find((i) =>
+    i.alba.some((a) => normalizuj(a.album.nazev) === hledana),
+  );
+  if (podleAlba) return kandidati.find((k) => k.id === podleAlba.id) ?? podleAlba;
+
+  const podleCasti = sRepertoarem.find(
+    (i) =>
+      i.skladby.some((s) => normalizuj(s.skladba.nazev).includes(hledana) || hledana.includes(normalizuj(s.skladba.nazev))) ||
+      i.alba.some((a) => normalizuj(a.album.nazev).includes(hledana) || hledana.includes(normalizuj(a.album.nazev))),
+  );
+  if (podleCasti) return kandidati.find((k) => k.id === podleCasti.id) ?? podleCasti;
+
+  return kandidati[0];
 }
 
 async function najdiVerejnePribehy(interpretId: string) {
@@ -83,10 +118,6 @@ async function najdiVerejnePribehy(interpretId: string) {
   });
 }
 
-// Události zatím nemají formální vazbu na interpreta (jen volný text v
-// nazvu/popisu) - dohledáváme je stejně jako zbytek appky dedupuje
-// návrhy: shodou v názvu. Nedokonalé, ale lepší než nic, dokud vazba
-// Udalost -> Interpret v datovém modelu nepřibude.
 async function najdiVerejneUdalosti(nazevInterpreta: string) {
   return prisma.udalost.findMany({
     where: { nazev: { contains: nazevInterpreta, mode: "insensitive" }, stav: { in: VEREJNE_STAVY_PRIBEHU } },
@@ -118,11 +149,13 @@ export async function OPTIONS() {
 
 export async function GET(req: NextRequest) {
   const jmeno = req.nextUrl.searchParams.get("jmeno")?.trim();
+  const skladba = req.nextUrl.searchParams.get("skladba")?.trim() || null;
   if (!jmeno) {
     return NextResponse.json({ nalezena: false }, { headers: CORS_HEADERS });
   }
 
-  const interpret = await najdiInterpreta(jmeno);
+  const kandidati = await kandidatiPodleJmena(jmeno);
+  const interpret = await vyberInterpreta(kandidati, skladba);
   if (!interpret) {
     return NextResponse.json({ nalezena: false }, { headers: CORS_HEADERS });
   }
