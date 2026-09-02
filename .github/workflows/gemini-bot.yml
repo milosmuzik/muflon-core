@@ -42,7 +42,7 @@ jobs:
 
           # Volání modelu
           response = client.models.generate_content(
-              model="gemini-2.5-flash",
+              model="gemini-3.6-flash",
               contents=f"Napiš kód nebo dokumentaci podle zadání: {prompt}. Vrať pouze samotný obsah bez zbytečných úvodních řečí."
           )
 
