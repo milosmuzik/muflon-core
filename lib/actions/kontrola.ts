@@ -7,6 +7,12 @@ import { smazatNekvalifikovane, type VysledekUklidu } from "@/lib/agent/uklid";
 import { slouciDuplicitniUdalosti, type VysledekSlouceni } from "@/lib/agent/duplicity";
 import { spustitAutomatickouRevizi, type VysledekAutomatickeRevize } from "@/lib/agent/automaticka-revize";
 import { opravitFeatDavku, type VysledekUkliduFeat } from "@/lib/agent/uklid-feat";
+import {
+  doplnitAlbum,
+  doplnitHudebnika,
+  doplnitKatalogDavku,
+  type VysledekDoplneni,
+} from "@/lib/agent/doplnit-katalog";
 
 function revalidateKontrola() {
   revalidatePath("/kontrola");
@@ -106,4 +112,35 @@ export async function spustitSlouceniRucne(
   const vysledek = await slouciDuplicitniUdalosti();
   revalidateKontrola();
   return vysledek;
+}
+
+export async function spustitDoplneniKatalogu(
+  _predchozi: VysledekDoplneni,
+  _formData: FormData
+): Promise<VysledekDoplneni> {
+  try {
+    const vysledek = await doplnitKatalogDavku(4);
+    revalidatePath("/kontrola");
+    revalidatePath("/hudebnici");
+    revalidatePath("/alba");
+    revalidatePath("/");
+    return vysledek;
+  } catch (e) {
+    return { zpracovano: 0, doplneno: 0, zdroje: 0, chyby: [(e as Error).message] };
+  }
+}
+
+export async function spustitDoplneniZaznamu(
+  typ: "Hudebnik" | "Album",
+  id: string
+): Promise<{ ok: boolean; text: string }> {
+  try {
+    const r = typ === "Hudebnik" ? await doplnitHudebnika(id) : await doplnitAlbum(id);
+    revalidatePath(typ === "Hudebnik" ? `/hudebnici/${id}` : `/alba/${id}`);
+    revalidatePath("/kontrola");
+    if (!r.doplneno) return { ok: true, text: "Nic nového se nenašlo. Záznam zůstává." };
+    return { ok: true, text: `Doplněno, zdrojů +${r.zdroje}. Nic se nemazalo.` };
+  } catch (e) {
+    return { ok: false, text: (e as Error).message };
+  }
 }
