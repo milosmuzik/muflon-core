@@ -1,4 +1,4 @@
-/** Homonymum Vanaheim: česká kapela vs. nizozemská z Tilburgu. */
+/** V Rádiu Muflon existuje jen český Vanaheim (Chlumec nad Cidlinou). */
 
 export const VANAHEIM_HISTORIE_CZ = `Česká kapela Vanaheim vznikla v prosinci 2015 v Chlumci nad Cidlinou. Od začátku spojuje energický heavy a power metal s vikingskou a severskou tematikou, texty jsou v češtině. Jméno si kapela vypůjčila ze severské mytologie – Vanaheim je jeden z devíti světů a domov bohů Vanů, spojovaných s plodností, moudrostí a přírodou.
 
@@ -14,11 +14,12 @@ export const VANAHEIM_SESTAVA_CZ = [
   { jmeno: "Libor Král", role: "zakládající člen", nastroj: "bicí", obdobiOd: "2015", obdobiDo: null },
 ];
 
-const HOLANDSKE = [
+const CIZI_STOPY = [
   /tilburg/i,
   /nizozem/i,
   /nederland/i,
   /netherlands/i,
+  /holland/i,
   /een verloren verhaal/i,
   /roede voor de borst/i,
   /fireflash/i,
@@ -27,42 +28,14 @@ const HOLANDSKE = [
   /the house spirit/i,
   /mike seidel/i,
   /bram trommelen/i,
+  /michael van eck/i,
 ];
 
-const CESKY_REPERTOAR = [
-  /devět světů/i,
-  /za obzor/i,
-  /jörmungandr/i,
-  /jormungandr/i,
-  /drakkar/i,
-  /fenrir/i,
-  /král vikingů/i,
-  /amulet/i,
-  /zlatí rytíři/i,
-  /křížem proti meči/i,
-];
-
-export function jeHolandskyVanaheimText(text: string | null | undefined): boolean {
+export function jeCiziVanaheimText(text: string | null | undefined): boolean {
   if (!text) return false;
-  return HOLANDSKE.some((r) => r.test(text));
+  return CIZI_STOPY.some((r) => r.test(text));
 }
 
-export function jeCeskyVanaheimRepertoar(text: string | null | undefined): boolean {
-  if (!text) return false;
-  return CESKY_REPERTOAR.some((r) => r.test(text));
-}
-
-export function maNasaditCeskehoVanaheima(args: {
-  nazevInterpreta: string;
-  skladba?: string | null;
-  historie?: string | null;
-  zeme?: string | null;
-  mesto?: string | null;
-}): boolean {
-  if (!/^vanaheim$/i.test(args.nazevInterpreta.trim())) return false;
-  if (jeCeskyVanaheimRepertoar(args.skladba ?? "")) return true;
-  if (jeHolandskyVanaheimText(args.historie))
-    return !/tilburg/i.test(args.mesto ?? "") || jeCeskyVanaheimRepertoar(args.skladba ?? "");
-  if (/nizozem|netherlands/i.test(args.zeme ?? "") && jeCeskyVanaheimRepertoar(args.skladba ?? "")) return true;
-  return false;
+export function jeVanaheim(nazev: string | null | undefined): boolean {
+  return /^vanaheim$/i.test((nazev ?? "").trim());
 }
