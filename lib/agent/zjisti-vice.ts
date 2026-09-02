@@ -1,7 +1,5 @@
 import { rozbalRedirect } from "./redirect";
-
-const GEMINI_MODEL = "gemini-flash-lite-latest";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+import { geminiJeDostupne, GeminiQuotaError, vytahniJson, zavolejGemini } from "./gemini";
 
 export type RozsireniVysledek = {
   rozsireni: string;
@@ -9,8 +7,7 @@ export type RozsireniVysledek = {
 };
 
 export async function zjistiVice(nazev: string, znamyPopis: string | null): Promise<RozsireniVysledek> {
-  const apiKlic = process.env.GEMINI_API_KEY;
-  if (!apiKlic) throw new Error("Chybí GEMINI_API_KEY.");
+  if (!geminiJeDostupne()) throw new GeminiQuotaError();
 
   const prompt = `Jsi redakční asistent hudební databáze Rádio Muflon. K události "${nazev}" už máme tuto informaci: "${znamyPopis ?? "(zatím nic)"}"
 
@@ -20,34 +17,11 @@ Vrať POUZE JSON (bez markdown):
 {"rozsireni": "2-4 věty nových podrobností, vlastními slovy", "zdroje": [{"nazev": "...", "url": "https://...", "kategorie": "jedna z: oficialni_web|socialni_site|archivni|databaze|media|rozhovor|kniha|orientacni"}]}
 Pokud nic nového ověřitelného nenajdeš, vrať {"rozsireni": "", "zdroje": []}.`;
 
-  const odpoved = await fetch(`${GEMINI_URL}?key=${apiKlic}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      tools: [{ google_search: {} }],
-    }),
-  });
-
-  if (!odpoved.ok) {
-    const chybaText = await odpoved.text();
-    throw new Error(`Gemini API ${odpoved.status}: ${chybaText.slice(0, 300)}`);
+  const surovyText = await zavolejGemini(prompt, true);
+  const parsed = vytahniJson(surovyText) as RozsireniVysledek | null;
+  if (!parsed) return { rozsireni: "", zdroje: [] };
+  for (const zdroj of parsed.zdroje || []) {
+    if (zdroj.url) zdroj.url = await rozbalRedirect(zdroj.url);
   }
-
-  const data = await odpoved.json();
-  const surovyText = (data?.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? "").join("\n");
-  const ocistene = surovyText.replace(/```json/gi, "").replace(/```/g, "").trim();
-  const start = ocistene.indexOf("{");
-  const konec = ocistene.lastIndexOf("}");
-  if (start === -1 || konec === -1) return { rozsireni: "", zdroje: [] };
-
-  try {
-    const vysledek: RozsireniVysledek = JSON.parse(ocistene.slice(start, konec + 1));
-    for (const zdroj of vysledek.zdroje || []) {
-      if (zdroj.url) zdroj.url = await rozbalRedirect(zdroj.url);
-    }
-    return vysledek;
-  } catch {
-    return { rozsireni: "", zdroje: [] };
-  }
+  return { rozsireni: parsed.rozsireni ?? "", zdroje: parsed.zdroje ?? [] };
 }
