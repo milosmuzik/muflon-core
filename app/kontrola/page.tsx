@@ -40,7 +40,8 @@ export default async function KontrolaPage() {
 
       <IndexCard label="Doplnit hudebníky a alba">
         <p className="text-muted text-sm mb-3">
-          Jen hledá chybějící fakta a zdroje. Hudebníky ani alba nemaže.
+          Nejdřív Metal Archives a MusicBrainz (bez kvóty). Gemini jen na chybějící text, a jen
+          když má kredit. Hudebníky ani alba nemaže.
         </p>
         <DoplnitKatalogTlacitko />
       </IndexCard>
@@ -71,8 +72,9 @@ export default async function KontrolaPage() {
 
       <IndexCard label="Ověřit příběhy a události">
         <p className="text-muted text-sm mb-3">
-          Jeden klik. Systém podle whitelistu schválí, nebo smaže. Interprety, hudebníky, alba a
-          skladby z playlistu nesahá. Mazání je jen u příběhů a událostí.
+          Jeden klik. Nejdřív whitelist a Metal Archives. Gemini jen když je kvóta. Při 429 se
+          dávka zastaví a návrhy se nemažou. Interprety, hudebníky, alba a skladby z playlistu
+          nesahá. Mazání je jen u příběhů a událostí, a jen po jistém „zdroj není“.
         </p>
         <AutomatickaRevizeTlacitko />
         <p className="text-muted text-xs mt-3 font-mono">
