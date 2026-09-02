@@ -1,0 +1,67 @@
+name: Gemini Bot
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  run-gemini:
+    if: startsWith(github.event.comment.body, '/gemini')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repozitáře
+        uses: actions/checkout@v4
+
+      - name: Nastavení Pythonu
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalace knihoven
+        run: |
+          pip install google-genai PyGithub
+
+      - name: Volání Gemini a zápis do repozitáře
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          python - << 'EOF'
+          import os
+          from google import genai
+          from github import Github
+
+          prompt = os.environ.get("COMMENT_BODY").replace("/gemini", "").strip()
+          client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+
+          # Volání modelu
+          response = client.models.generate_content(
+              model="gemini-2.5-flash",
+              contents=f"Napiš kód nebo dokumentaci podle zadání: {prompt}. Vrať pouze samotný obsah bez zbytečných úvodních řečí."
+          )
+
+          # Uložení výsledku do souboru
+          filename = "vystup-gemini.txt"
+          with open(filename, "w", encoding="utf-8") as f:
+              f.write(response.text)
+
+          # Git commit a push
+          os.system('git config user.name "Gemini Bot"')
+          os.system('git config user.email "bot@gemini.local"')
+          os.system(f'git add {filename}')
+          os.system('git commit -m "Automatický zápis od Gemini"')
+          os.system('git push')
+
+          # Komentář zpět do issue
+          gh = Github(os.environ.get("GITHUB_TOKEN"))
+          repo = gh.get_repo(os.environ.get("GITHUB_REPOSITORY"))
+          issue = repo.get_issue(int(os.environ.get("ISSUE_NUMBER")))
+          issue.create_comment(f"Hotovo! Vytvořil jsem a uložil soubor `{filename}`.")
+          EOF
+          
