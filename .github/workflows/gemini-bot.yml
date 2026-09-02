@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
   issues: write
 
 jobs:
@@ -15,6 +16,8 @@ jobs:
     steps:
       - name: Checkout repozitáře
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Nastavení Pythonu
         uses: actions/setup-python@v5
@@ -25,7 +28,7 @@ jobs:
         run: |
           pip install google-genai PyGithub
 
-      - name: Volání Gemini a zápis do repozitáře
+      - name: Zpracování úlohy modelem Gemini
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -34,6 +37,89 @@ jobs:
         run: |
           python - << 'EOF'
           import os
+          import re
+          import subprocess
+          import time
+          from google import genai
+          from github import Github
+
+          user_prompt = os.environ.get("COMMENT_BODY").replace("/gemini", "").strip()
+          issue_num = os.environ.get("ISSUE_NUMBER")
+
+          # 1. Zmapování struktury repozitáře (přehled souborů)
+          file_tree = []
+          for root, dirs, files in os.walk("."):
+              if ".git" in dirs:
+                  dirs.remove(".git")
+              for f in files:
+                  rel_path = os.path.relpath(os.path.join(root, f), ".")
+                  file_tree.append(rel_path)
+          tree_str = "\n".join(file_tree[:100])
+
+          system_instruction = f"""Jsi autonomní softwarový inženýr pracující v tomto repozitáři.
+          Struktura projektu:
+          {tree_str}
+
+          Tvým úkolem je na základě požadavku uživatele vygenerovat změny.
+          Vrať výstup POUZE ve formátu bloků souborů takto:
+
+          FILE: cesta/k/souboru.pripona
+          ```
+          zde bude kompletní nový obsah souboru
+          ```
+
+          Pokud soubor už existuje, nahradí se tímto novým obsahem. Pokud neexistuje, vytvoří se.
+          Nevracej žádný jiný úvodní ani závěrečný text mimo tyto bloky.
+          """
+
+          client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+          response = client.models.generate_content(
+              model="gemini-3.6-flash",
+              contents=f"Instrukce systému:\n{system_instruction}\n\nPožadavek uživatele: {user_prompt}"
+          )
+
+          output_text = response.text.strip()
+
+          # 2. Parsování vygenerovaných souborů
+          pattern = r"FILE:\s*([^\n\r]+)\s*```[\w]*\n(.*?)```"
+          matches = re.findall(pattern, output_text, re.DOTALL)
+
+          gh = Github(os.environ.get("GITHUB_TOKEN"))
+          repo = gh.get_repo(os.environ.get("GITHUB_REPOSITORY"))
+          issue = repo.get_issue(int(issue_num))
+
+          if not matches:
+              issue.create_comment("Nepodařilo se rozpoznat formát souborů z odpovědi modelu:\n\n" + output_text)
+              exit(0)
+
+          # 3. Příprava nové Git větve
+          branch_name = f"gemini-task-{issue_num}-{int(time.time())}"
+          subprocess.run(["git", "checkout", "-b", branch_name], check=True)
+          subprocess.run(["git", "config", "user.name", "Gemini Bot"], check=True)
+          subprocess.run(["git", "config", "user.email", "gemini-bot@actions.local"], check=True)
+
+          changed_files = []
+          for file_path, content in matches:
+              file_path = file_path.strip()
+              os.makedirs(os.path.dirname(file_path) or ".", exist_ok=True)
+              with open(file_path, "w", encoding="utf-8") as f:
+                  f.write(content)
+              subprocess.run(["git", "add", file_path], check=True)
+              changed_files.append(file_path)
+
+          subprocess.run(["git", "commit", "-m", f"Gemini: {user_prompt[:50]}"], check=True)
+          subprocess.run(["git", "push", "origin", branch_name], check=True)
+
+          # 4. Založení Pull Requestu
+          pr = repo.create_pull(
+              title=f"Gemini: Změny pro #{issue_num}",
+              body=f"Automaticky vygenerované změny podle požadavku v #{issue_num}:\n> {user_prompt}\n\nUpravené soubory:\n- " + "\n- ".join(changed_files),
+              head=branch_name,
+              base=repo.default_branch
+          )
+
+          issue.create_comment(f"✅ Hotovo! Vytvořil jsem změny v souborech a otevřel Pull Request: #{pr.number}\n\nMůžeš ho zkontrolovat a sloučit zde: {pr.html_url}")
+          EOF
           from google import genai
           from github import Github
 
