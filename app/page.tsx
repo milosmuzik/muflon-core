@@ -3,6 +3,7 @@ import IndexCard from "@/components/IndexCard";
 import StatusBadge from "@/components/StatusBadge";
 import Link from "next/link";
 import { serazenoPodleNejblizsiho } from "@/lib/kalendar";
+import { prehledBezZdroje } from "@/lib/bez-zdroje";
 
 export default async function Dashboard() {
   const [
@@ -14,7 +15,7 @@ export default async function Dashboard() {
     pocetUdalosti,
     pribehyKOvereni,
     udalostiVsechny,
-    entityBezZdroje,
+    bezZdroje,
   ] = await Promise.all([
     prisma.interpret.count(),
     prisma.hudebnik.count(),
@@ -24,15 +25,11 @@ export default async function Dashboard() {
     prisma.udalost.count(),
     prisma.pribeh.findMany({ where: { stav: "navrh" }, orderBy: { createdAt: "desc" }, take: 6 }),
     prisma.udalost.findMany(),
-    prisma.pribeh.findMany({ take: 200, orderBy: { createdAt: "desc" } }),
+    prehledBezZdroje(3),
   ]);
 
-  // Příběhy bez jediného zdroje - kap. 4.4 "Pokud zdroj chybí, systém na to upozorní."
-  const zdrojePribehu = await prisma.zdroj.findMany({ where: { cilovyTyp: "Pribeh" } });
-  const idsSeZdrojem = new Set(zdrojePribehu.map((z) => z.cilovyId));
-  const pribehyBezZdroje = entityBezZdroje.filter((p) => !idsSeZdrojem.has(p.id)).slice(0, 6);
-
   const nejblizsiVyroci = serazenoPodleNejblizsiho(udalostiVsechny).slice(0, 6);
+  const celkemBezZdroje = Object.values(bezZdroje.pocty).reduce((a, b) => a + b, 0);
 
   const dlazdice = [
     { label: "Interpreti", pocet: pocetInterpretu, href: "/interpreti" },
@@ -82,21 +79,32 @@ export default async function Dashboard() {
           </Link>
         </IndexCard>
 
-        <IndexCard label="Čeká na ověření zdroje">
-          {pribehyBezZdroje.length === 0 ? (
-            <p className="text-muted text-sm">Žádné příběhy bez zdroje. Dobrá práce.</p>
+        <IndexCard label="Bez zdroje">
+          {celkemBezZdroje === 0 ? (
+            <p className="text-muted text-sm">Všechny entity mají aspoň jeden zdroj.</p>
           ) : (
-            <ul className="space-y-2">
-              {pribehyBezZdroje.map((p) => (
-                <li key={p.id} className="flex items-center justify-between text-sm border-b border-line/60 pb-2">
-                  <Link href={`/pribehy/${p.id}`} className="text-paper hover:text-accent">
-                    {p.nadpis}
-                  </Link>
-                  <StatusBadge stav={p.stav} />
-                </li>
-              ))}
-            </ul>
+            <>
+              <p className="text-muted text-xs font-mono mb-3">
+                {Object.entries(bezZdroje.pocty)
+                  .filter(([, n]) => n > 0)
+                  .map(([typ, n]) => `${typ} ${n}`)
+                  .join(" · ")}
+              </p>
+              <ul className="space-y-2">
+                {bezZdroje.vzorek.map((r) => (
+                  <li key={`${r.typ}:${r.id}`} className="flex items-center justify-between text-sm border-b border-line/60 pb-2 gap-3">
+                    <Link href={r.href} className="text-paper hover:text-accent truncate">
+                      {r.nazev}
+                    </Link>
+                    <span className="tab-label shrink-0">{r.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
+          <Link href="/kontrola" className="text-accent text-sm mt-3 inline-block hover:underline">
+            Otevřít kontrolu →
+          </Link>
         </IndexCard>
       </div>
 
