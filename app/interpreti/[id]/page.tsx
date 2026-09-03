@@ -6,8 +6,10 @@ import StatusBadge from "@/components/StatusBadge";
 import ZdrojeSekce from "@/components/ZdrojeSekce";
 import VazbySekce from "@/components/VazbySekce";
 import HistorieSekce from "@/components/HistorieSekce";
+import OpravitVanaheimTlacitko from "@/components/OpravitVanaheimTlacitko";
 import { upravitInterpreta, pridatClenstvi } from "@/lib/actions/interpreti";
 import { najdiVazby } from "@/lib/actions/spolecne";
+import { jeCiziVanaheimText, jeVanaheim } from "@/lib/homonyma/vanaheim";
 
 export default async function InterpretDetail({ params }: { params: { id: string } }) {
   const interpret = await prisma.interpret.findUnique({
@@ -21,14 +23,16 @@ export default async function InterpretDetail({ params }: { params: { id: string
   if (!interpret) notFound();
 
   const cesta = `/interpreti/${interpret.id}`;
+  const vanaheimCizi =
+    jeVanaheim(interpret.nazev) &&
+    (jeCiziVanaheimText(`${interpret.zeme ?? ""} ${interpret.mesto ?? ""} ${interpret.historie ?? ""}`) ||
+      interpret.clenstvi.some((c) => jeCiziVanaheimText(c.hudebnik.jmeno)));
 
   const [zdroje, vazby, historie, pribehyVazby, udalosti] = await Promise.all([
     prisma.zdroj.findMany({ where: { cilovyTyp: "Interpret", cilovyId: interpret.id }, orderBy: { createdAt: "desc" } }),
     najdiVazby("Interpret", interpret.id),
     prisma.historieZmeny.findMany({ where: { entitaTyp: "Interpret", entitaId: interpret.id }, orderBy: { createdAt: "desc" }, take: 20 }),
     prisma.vazba.findMany({ where: { zdrojovyTyp: "Pribeh", cilovyTyp: "Interpret", cilovyId: interpret.id } }),
-    // Události zatím nemají formální vazbu na interpreta v datovém modelu -
-    // dohledáváme je stejně jako veřejné API (shoda v názvu).
     prisma.udalost.findMany({ where: { nazev: { contains: interpret.nazev, mode: "insensitive" } }, orderBy: { datum: "asc" } }),
   ]);
   const pribehy = await prisma.pribeh.findMany({ where: { id: { in: pribehyVazby.map((v) => v.zdrojovyId) } }, orderBy: { updatedAt: "desc" } });
@@ -162,6 +166,14 @@ export default async function InterpretDetail({ params }: { params: { id: string
         </div>
 
         <div className="space-y-5">
+          {vanaheimCizi && (
+            <IndexCard label="Homonymum">
+              <p className="text-sm text-paper mb-3 leading-relaxed">
+                Na této kartě je nizozemský Vanaheim z Tilburgu. V Muflonu má být česká kapela z Chlumce nad Cidlinou.
+              </p>
+              <OpravitVanaheimTlacitko interpretId={interpret.id} />
+            </IndexCard>
+          )}
           {interpret.redakcniVyznam && (
             <IndexCard label="Redakční význam">
               <p className="text-muted text-sm leading-relaxed">{interpret.redakcniVyznam}</p>
