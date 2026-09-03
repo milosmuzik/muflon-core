@@ -67,7 +67,7 @@ async function vyberInterpreta(
   skladba: string | null,
 ) {
   if (kandidati.length === 0) return null;
-  if (jeVanaheim(kandidati[0]?.nazev)) {
+  if (jeVanaheim(kandidati[0]?.nazev) || kandidati.some((k) => jeVanaheim(k.nazev))) {
     const cesky = kandidati.find(
       (k) => /česko|cesko|czechia|czech/i.test(k.zeme ?? "") || /chlumec/i.test(k.mesto ?? ""),
     );
@@ -160,7 +160,9 @@ export async function GET(req: NextRequest) {
     najdiSestavu(interpret.id),
   ]);
 
-  const ceskyVanaheim = jeVanaheim(interpret.nazev);
+  // V Rádiu Muflon je Vanaheim vždy česká kapela z Chlumce. DB i CDN cache
+  // umí podržet nizozemskou kartu — proto se historie/sestava přepisují tady.
+  const ceskyVanaheim = jeVanaheim(jmeno) || jeVanaheim(interpret.nazev);
   const historie = ceskyVanaheim ? VANAHEIM_HISTORIE_CZ : (interpret.historie ?? "");
   const sestavaCizi = sestavaRaw.some((c) => jeCiziVanaheimText(c.jmeno));
   const sestava = ceskyVanaheim && (sestavaCizi || sestavaRaw.length === 0) ? VANAHEIM_SESTAVA_CZ : sestavaRaw;
@@ -175,6 +177,10 @@ export async function GET(req: NextRequest) {
     ? zkratit(pribehy[0].obsah, MAX_DELKA_PRIBEHU)
     : (historie ? zkratit(historie, MAX_DELKA_PRIBEHU) : null);
 
+  const cache = ceskyVanaheim
+    ? "private, no-store, max-age=0"
+    : "public, s-maxage=300, stale-while-revalidate=600";
+
   return NextResponse.json(
     {
       nalezena: true,
@@ -184,11 +190,12 @@ export async function GET(req: NextRequest) {
       sestava,
       historie,
       kratkyPribeh: kratkyPribeh ?? "",
+      karta: ceskyVanaheim ? "vanaheim-cz" : undefined,
     },
     {
       headers: {
         ...CORS_HEADERS,
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+        "Cache-Control": cache,
       },
     }
   );
