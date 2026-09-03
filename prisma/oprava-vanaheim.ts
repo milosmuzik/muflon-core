@@ -1,50 +1,23 @@
 /**
- * V Muflonu je Vanaheim jen česká kapela z Chlumce nad Cidlinou.
- * Skript přepíše všechny záznamy tohoto jména.
+ * Přepíše všechny záznamy Vanaheim na českou kapelu z Chlumce
+ * včetně sestavy, alb, skladeb a vazeb.
  *
  *   npx tsx prisma/oprava-vanaheim.ts
  */
 
 import { PrismaClient } from "@prisma/client";
-import { VANAHEIM_HISTORIE_CZ } from "../lib/homonyma/vanaheim";
+import { opravitKartuVanaheimu } from "../lib/homonyma/opravit-kartu";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  const interpreti = await prisma.interpret.findMany({
-    where: { nazev: { equals: "Vanaheim", mode: "insensitive" } },
-  });
-
-  if (interpreti.length === 0) {
+  const vysledky = await opravitKartuVanaheimu(prisma);
+  if (vysledky.length === 0) {
     console.log("Interpret Vanaheim nenalezen.");
     return;
   }
-
-  console.log(`Nalezeno záznamů Vanaheim: ${interpreti.length}`);
-
-  for (const interpret of interpreti) {
-    const po = await prisma.interpret.update({
-      where: { id: interpret.id },
-      data: {
-        zeme: "Česko",
-        mesto: "Chlumec nad Cidlinou",
-        rokVzniku: interpret.rokVzniku ?? 2015,
-        zanry: interpret.zanry ?? "heavy metal, power metal, viking metal",
-        historie: VANAHEIM_HISTORIE_CZ,
-        poznamka: null,
-      },
-    });
-
-    await prisma.historieZmeny.create({
-      data: {
-        entitaTyp: "Interpret",
-        entitaId: po.id,
-        akce: "upraveno",
-        popis: "Vanaheim sjednocen na českou kapelu z Chlumce nad Cidlinou.",
-      },
-    });
-
-    console.log(`Opraveno ${po.id} → Česko / Chlumec nad Cidlinou`);
+  for (const v of vysledky) {
+    console.log(JSON.stringify(v, null, 2));
   }
 }
 

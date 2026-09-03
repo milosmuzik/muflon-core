@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { opravitKartuVanaheimu } from "@/lib/homonyma/opravit-kartu";
+import { jeVanaheim } from "@/lib/homonyma/vanaheim";
 
 export async function vytvoritInterpreta(formData: FormData) {
   const nazev = String(formData.get("nazev") || "").trim();
@@ -69,4 +71,15 @@ export async function pridatClenstvi(interpretId: string, formData: FormData) {
   });
   await zapisHistorii("Interpret", interpretId, "upraveno", `Přidáno členství: ${hudebnikNazev}`);
   revalidatePath(`/interpreti/${interpretId}`);
+}
+
+export async function opravitCeskyVanaheim(interpretId: string) {
+  const interpret = await prisma.interpret.findUnique({ where: { id: interpretId } });
+  if (!interpret || !jeVanaheim(interpret.nazev)) {
+    return { ok: false as const, chyba: "Toto není karta Vanaheim." };
+  }
+  const vysledky = await opravitKartuVanaheimu(prisma, interpretId);
+  revalidatePath(`/interpreti/${interpretId}`);
+  revalidatePath("/interpreti");
+  return { ok: true as const, vysledek: vysledky[0] ?? null };
 }

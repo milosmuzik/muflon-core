@@ -6,12 +6,48 @@ Zakladateli byli bubeník Libor Král a kytarista Martin Drobný, záhy přibyl 
 
 Zlomem je koncepční album Devět světů (vydání 21. března 2026), pokřtěné v chlumecké sokolovně při oslavě deseti let kapely. Klipy k Devět světů a Drakkar se točily v Norsku (Bergen, ostrov Halsnøy). Kapela hrála na Metalfestu, Masters of Rock a The Legends Rock Fest.`.trim();
 
+export const VANAHEIM_REDAKCNI_VYZNAM_CZ =
+  "Česká viking/heavy metalová kapela z Chlumce nad Cidlinou. Neplést s nizozemským Vanaheimem z Tilburgu.";
+
 export const VANAHEIM_SESTAVA_CZ = [
   { jmeno: "Miloslav Krejčí", role: "člen", nastroj: "zpěv", obdobiOd: "2023", obdobiDo: null as string | null },
   { jmeno: "Martin Drobný", role: "zakládající člen", nastroj: "kytara", obdobiOd: "2015", obdobiDo: null },
   { jmeno: "Jiří Kubišta", role: "člen", nastroj: "klávesy", obdobiOd: null, obdobiDo: null },
   { jmeno: "Radek Hladík", role: "zakládající člen", nastroj: "baskytara", obdobiOd: "2015", obdobiDo: null },
   { jmeno: "Libor Král", role: "zakládající člen", nastroj: "bicí", obdobiOd: "2015", obdobiDo: null },
+  { jmeno: "Radek Drobný", role: "bývalý člen", nastroj: "zpěv", obdobiOd: "2015", obdobiDo: "2018" },
+  { jmeno: "Miloš Koblmüller", role: "bývalý člen", nastroj: "zpěv", obdobiOd: "2018", obdobiDo: "2023" },
+];
+
+export const VANAHEIM_ALBA_CZ = [
+  { nazev: "Věčná sláva", datumVydani: "2017" },
+  { nazev: "Zlatí rytíři", datumVydani: "2018" },
+  { nazev: "Křížem proti meči", datumVydani: "2020" },
+  { nazev: "Amulet", datumVydani: "2021" },
+  { nazev: "Devět světů", datumVydani: "2026-03-21" },
+];
+
+export const VANAHEIM_SKLADBY_CZ = [
+  "Ásgard",
+  "Asgard",
+  "Devět světů",
+  "Drakkar",
+  "Za obzor",
+  "Jörmungandr",
+  "Jormungandr",
+  "Fenrir",
+  "HEL",
+  "Hel",
+  "Amulet",
+  "Křížem proti meči",
+  "Křízem proti meči",
+  "Zpěv Valhally",
+  "Ledové fjordy",
+  "Valkýry",
+  "Král vikingů",
+  "Thorovo kladivo",
+  "Sköll a Hati",
+  "Upsalla",
 ];
 
 const CIZI_STOPY = [
@@ -29,6 +65,12 @@ const CIZI_STOPY = [
   /mike seidel/i,
   /bram trommelen/i,
   /michael van eck/i,
+  /james chanc/i,
+  /nick roovers/i,
+  /vanacoustica/i,
+  /de overtocht/i,
+  /eendracht maakt macht/i,
+  /the dwarven chant/i,
 ];
 
 export function jeCiziVanaheimText(text: string | null | undefined): boolean {
