@@ -73,6 +73,28 @@ export async function pridatClenstvi(interpretId: string, formData: FormData) {
   revalidatePath(`/interpreti/${interpretId}`);
 }
 
+export async function smazatInterpreta(id: string) {
+  const interpret = await prisma.interpret.findUnique({ where: { id } });
+  if (!interpret) {
+    redirect("/interpreti");
+  }
+
+  await prisma.zdroj.deleteMany({ where: { cilovyTyp: "Interpret", cilovyId: id } });
+  await prisma.vazba.deleteMany({
+    where: {
+      OR: [
+        { zdrojovyTyp: "Interpret", zdrojovyId: id },
+        { cilovyTyp: "Interpret", cilovyId: id },
+      ],
+    },
+  });
+  await prisma.historieZmeny.deleteMany({ where: { entitaTyp: "Interpret", entitaId: id } });
+  await prisma.interpret.delete({ where: { id } });
+
+  revalidatePath("/interpreti");
+  redirect("/interpreti");
+}
+
 export async function opravitCeskyVanaheim(interpretId: string) {
   const interpret = await prisma.interpret.findUnique({ where: { id: interpretId } });
   if (!interpret || !jeVanaheim(interpret.nazev)) {
