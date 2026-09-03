@@ -7,6 +7,8 @@ import ZdrojeSekce from "@/components/ZdrojeSekce";
 import VazbySekce from "@/components/VazbySekce";
 import HistorieSekce from "@/components/HistorieSekce";
 import OpravitVanaheimTlacitko from "@/components/OpravitVanaheimTlacitko";
+import SmazatKartuTlacitko from "@/components/SmazatKartuTlacitko";
+import SmazatClenstviTlacitko from "@/components/SmazatClenstviTlacitko";
 import { upravitInterpreta, pridatClenstvi } from "@/lib/actions/interpreti";
 import { najdiVazby } from "@/lib/actions/spolecne";
 import { jeCiziVanaheimText, jeVanaheim } from "@/lib/homonyma/vanaheim";
@@ -76,15 +78,18 @@ export default async function InterpretDetail({ params }: { params: { id: string
             ) : (
               <ul className="space-y-2 mb-4">
                 {interpret.clenstvi.map((c) => (
-                  <li key={c.id} className="text-sm border-b border-line/60 pb-2">
-                    <Link href={`/hudebnici/${c.hudebnikId}`} className="text-paper hover:text-accent">
-                      {c.hudebnik.jmeno}
-                    </Link>
-                    <span className="text-muted text-xs font-mono ml-2">
-                      {[c.role, c.nastroj, [c.obdobiOd, c.obdobiDo].filter(Boolean).join("–")]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
+                  <li key={c.id} className="text-sm border-b border-line/60 pb-2 flex items-start justify-between gap-2">
+                    <div>
+                      <Link href={`/hudebnici/${c.hudebnikId}`} className="text-paper hover:text-accent">
+                        {c.hudebnik.jmeno}
+                      </Link>
+                      <span className="text-muted text-xs font-mono ml-2">
+                        {[c.role, c.nastroj, [c.obdobiOd, c.obdobiDo].filter(Boolean).join("–")]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    </div>
+                    <SmazatClenstviTlacitko clenstviId={c.id} interpretId={interpret.id} />
                   </li>
                 ))}
               </ul>
@@ -210,6 +215,9 @@ export default async function InterpretDetail({ params }: { params: { id: string
                 Uložit změny
               </button>
             </form>
+            <div className="mt-3">
+              <SmazatKartuTlacitko interpretId={interpret.id} nazev={interpret.nazev} />
+            </div>
           </IndexCard>
 
           <HistorieSekce zaznamy={historie} />
