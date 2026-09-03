@@ -69,7 +69,13 @@ export async function pridatClenstvi(interpretId: string, formData: FormData) {
       obdobiDo: String(formData.get("obdobiDo") || "").trim() || null,
     },
   });
-  await zapisHistorii("Interpret", interpretId, "upraveno", `Přidáno členství: ${hudebnikNazev}`);
+  await zapisHistorii("Interpret", interpretId, "upraveno", `Řidáno členství: ${hudebnikNazev}`);
+  revalidatePath(`/interpreti/${interpretId}`);
+}
+
+export async function smazatClenstvi(clenstviId: string, interpretId: string) {
+  await prisma.clenstvi.delete({ where: { id: clenstviId } });
+  await zapisHistorii("Interpret", interpretId, "upraveno", "Odstraněno členství");
   revalidatePath(`/interpreti/${interpretId}`);
 }
 
@@ -79,6 +85,9 @@ export async function smazatInterpreta(id: string) {
     redirect("/interpreti");
   }
 
+  await prisma.clenstvi.deleteMany({ where: { interpretId: id } });
+  await prisma.albumInterpret.deleteMany({ where: { interpretId: id } });
+  await prisma.skladbaInterpret.deleteMany({ where: { interpretId: id } });
   await prisma.zdroj.deleteMany({ where: { cilovyTyp: "Interpret", cilovyId: id } });
   await prisma.vazba.deleteMany({
     where: {
