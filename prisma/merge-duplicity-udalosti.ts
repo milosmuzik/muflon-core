@@ -1,7 +1,12 @@
 /**
- * Merge skript v5: sloučí shluky duplicitních Událostí se STEJNÝM datem.
+ * Merge skript v6: sloučí shluky duplicitních Událostí se STEJNÝM datem.
  * Shluky s rozdílem 1 den (⚠️ POZOR RŮZNÉ DNY) se NIKDY neslučují
  * automaticky — jen se vypíšou k ruční kontrole.
+ *
+ * Změna oproti v5 (viz audit-duplicity-udalosti.ts pro detaily): detekce
+ * teď kromě titulku (`nazev`) porovnává i podobnost pole `popis`, aby
+ * chytila duplicity se stejným dnem/faktem, ale úplně jinak formulovaným
+ * titulkem.
  *
  * VÝCHOZÍ REŽIM = DRY-RUN.
  *   npx tsx prisma/merge-duplicity-udalosti.ts
@@ -21,6 +26,7 @@ const PROVEST = process.argv.includes("--provest");
 interface UdalostRow {
   id: string;
   nazev: string;
+  popis: string | null;
   datum: string;
   denCislo: number;
   typ: string;
@@ -42,7 +48,7 @@ const STOPWORDA = [
 const DNY_V_MESICI = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
 function odstranDiakritiku(text: string): string {
-  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return text.normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
 function normalizuj(text: string): string[] {
@@ -89,6 +95,10 @@ function podobnostNazvu(a: string, b: string): number {
   return jaccard(trigramySady(normalizuj(a)), trigramySady(normalizuj(b)));
 }
 
+function podobnostPopisu(a: string, b: string): number {
+  return jaccard(trigramySady(normalizuj(a)), trigramySady(normalizuj(b)));
+}
+
 function vyznamovaSlova(text: string): string[] {
   return normalizuj(text).filter((slovo) => slovo.length >= 5);
 }
@@ -129,7 +139,7 @@ const PRAH_SLOVO_FUZZY = 0.55;
 async function nacistUdalosti(): Promise<UdalostRow[]> {
   const [udalosti, zdroje, vazby, interpreti, hudebnici] = await Promise.all([
     prisma.udalost.findMany({
-      select: { id: true, nazev: true, datum: true, typ: true, stav: true, createdAt: true },
+      select: { id: true, nazev: true, popis: true, datum: true, typ: true, stav: true, createdAt: true },
     }),
     prisma.zdroj.findMany({ where: { cilovyTyp: TYP_UDALOST }, select: { cilovyId: true } }),
     prisma.vazba.findMany({
@@ -195,6 +205,7 @@ async function nacistUdalosti(): Promise<UdalostRow[]> {
   return udalosti.map((u) => ({
     id: u.id,
     nazev: u.nazev,
+    popis: u.popis,
     datum: u.datum,
     denCislo: denCisloZData(u.datum),
     typ: u.typ,
@@ -211,6 +222,9 @@ const PRAH_STEJNA_ENTITA = 0.3;
 const PRAH_JEN_TEXT = 0.45;
 const PRAH_SOUSEDNI_DEN_ENTITA = 0.45;
 const PRAH_SOUSEDNI_DEN_TEXT = 0.65;
+// NOVÉ v6: prahy pro podobnost pole `popis`, nezávisle na titulku.
+const PRAH_POPIS_STEJNY_DEN = 0.35;
+const PRAH_POPIS_SOUSEDNI_DEN = 0.5;
 
 function jeDuplicita(a: UdalostRow, b: UdalostRow): { je: boolean; skore: number; duvod: string; ruzneDatumy: boolean } {
   const rozdil = rozdilDni(a.denCislo, b.denCislo);
@@ -221,6 +235,8 @@ function jeDuplicita(a: UdalostRow, b: UdalostRow): { je: boolean; skore: number
   const stejnaEntita = entitaA !== null && entitaA === entitaB;
 
   const skore = podobnostNazvu(a.nazev, b.nazev);
+  const popisSkore = a.popis && b.popis ? podobnostPopisu(a.popis, b.popis) : 0;
+  const nejlepsiSkore = Math.max(skore, popisSkore);
 
   if (rozdil === 0) {
     if (stejnaEntita && skore >= PRAH_STEJNA_ENTITA) {
@@ -233,12 +249,18 @@ function jeDuplicita(a: UdalostRow, b: UdalostRow): { je: boolean; skore: number
     if (sdilena.pocet >= 2) {
       return { je: true, skore, duvod: `sdílená klíčová slova (${sdilena.slova.join(", ")}) + stejný den, podobnost textu ${Math.round(skore * 100)} %`, ruzneDatumy: false };
     }
+    if (popisSkore >= PRAH_POPIS_STEJNY_DEN) {
+      return { je: true, skore: nejlepsiSkore, duvod: `podobný popis (${Math.round(popisSkore * 100)} %) + stejný den, titulky se přitom liší (${Math.round(skore * 100)} %)`, ruzneDatumy: false };
+    }
   } else {
     if (stejnaEntita && skore >= PRAH_SOUSEDNI_DEN_ENTITA) {
       return { je: true, skore, duvod: `POZOR RŮZNÉ DNY (${a.datum} vs ${b.datum}) — stejná entita (${entitaA}), podobnost textu ${Math.round(skore * 100)} %`, ruzneDatumy: true };
     }
     if (skore >= PRAH_SOUSEDNI_DEN_TEXT) {
       return { je: true, skore, duvod: `POZOR RŮZNÉ DNY (${a.datum} vs ${b.datum}) — podobný text (${Math.round(skore * 100)} %)`, ruzneDatumy: true };
+    }
+    if (popisSkore >= PRAH_POPIS_SOUSEDNI_DEN) {
+      return { je: true, skore: nejlepsiSkore, duvod: `POZOR RŮZNÉ DNY (${a.datum} vs ${b.datum}) — podobný popis (${Math.round(popisSkore * 100)} %)`, ruzneDatumy: true };
     }
   }
   return { je: false, skore, duvod: "", ruzneDatumy: false };
