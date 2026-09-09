@@ -19,6 +19,10 @@ function revalidateKontrola() {
   revalidatePath("/pribehy");
   revalidatePath("/udalosti");
   revalidatePath("/kalendar");
+  revalidatePath("/interpreti");
+  revalidatePath("/hudebnici");
+  revalidatePath("/alba");
+  revalidatePath("/skladby");
 }
 
 const PRAZDNY_VYSLEDEK: VysledekAutomatickeRevize = {
@@ -31,6 +35,66 @@ const PRAZDNY_VYSLEDEK: VysledekAutomatickeRevize = {
   hotovo: false,
   chyby: [],
 };
+
+export type VysledekSdruzeneKontroly = {
+  katalog: VysledekDoplneni;
+  feat: VysledekUkliduFeat;
+  zdroje: VysledekDohledani;
+  revize: VysledekAutomatickeRevize;
+  chyby: string[];
+};
+
+export async function spustitSdruzeneKontrolu(): Promise<VysledekSdruzeneKontroly> {
+  const chyby: string[] = [];
+  let katalog: VysledekDoplneni = { zpracovano: 0, doplneno: 0, zdroje: 0, polozky: [], chyby: [] };
+  let feat: VysledekUkliduFeat = {
+    opravenoInterpretu: 0,
+    napojenoHostu: 0,
+    slouceno: 0,
+    zbyva: 0,
+    hotovo: false,
+    chyby: [],
+  };
+  let zdroje: VysledekDohledani = {
+    zkontrolovano: 0,
+    nalezeno: 0,
+    smazano: 0,
+    preskocenoKvota: 0,
+    chyby: [],
+  };
+  let revize: VysledekAutomatickeRevize = { ...PRAZDNY_VYSLEDEK };
+
+  try {
+    feat = await opravitFeatDavku();
+    chyby.push(...feat.chyby);
+  } catch (e) {
+    chyby.push((e as Error).message || "Oprava feat selhala.");
+  }
+
+  try {
+    katalog = await doplnitKatalogDavku(4);
+    chyby.push(...katalog.chyby);
+  } catch (e) {
+    chyby.push((e as Error).message || "Doplnění katalogu selhalo.");
+  }
+
+  try {
+    zdroje = await dohledatChybejiciZdroje(8);
+    chyby.push(...zdroje.chyby);
+  } catch (e) {
+    chyby.push((e as Error).message || "Dohledání zdrojů selhalo.");
+  }
+
+  try {
+    revize = await spustitAutomatickouRevizi();
+    chyby.push(...revize.chyby);
+  } catch (e) {
+    chyby.push((e as Error).message || "Revize selhala.");
+  }
+
+  revalidateKontrola();
+  return { katalog, feat, zdroje, revize, chyby: chyby.slice(-12) };
+}
 
 export async function spustitAutomatickouReviziRucne(
   _predchoziStav: VysledekAutomatickeRevize | null,
