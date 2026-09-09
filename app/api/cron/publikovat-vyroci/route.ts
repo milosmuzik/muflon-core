@@ -1,16 +1,8 @@
-// app/api/cron/publikovat-vyroci/route.ts
-//
-// Denní automatická publikace na sociální sítě (Facebook + Instagram + X).
-// Běží večer, po ranním navrhy-kalendar cronu, který na dnešek navrhne
-// a případně auto-schválí kalendářní výročí. Výběr, CO se publikuje, se
-// neděje ručně - bere se první dnešní výročí ve stavu "schvaleno"/
-// "publikovano" (tzn. prošlo trust politikou ze zdroje), které tento rok
-// na dané síti ještě nebylo publikováno. Max 1 příspěvek/den/síť, aby
-// se malý účet (řádově stovky sledujících) nezahltil.
-
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { publikovatNaFacebook, publikovatNaInstagram, publikovatNaX } from "@/lib/actions/socialni";
+import { overCron } from "@/lib/over-cron";
+import { isoPraha, mmddPraha, zacatekRokuUtc } from "@/lib/cas";
 
 export const maxDuration = 30;
 
@@ -24,15 +16,12 @@ async function jizLetosPublikovano(udalostId: string, platforma: string, letosni
 }
 
 export async function GET(request: NextRequest) {
-  const hlavicka = request.headers.get("authorization");
-  if (hlavicka !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Neautorizováno" }, { status: 401 });
-  }
+  const zamitnout = overCron(request);
+  if (zamitnout) return zamitnout;
 
-  const dnes = new Date();
-  const mmdd = `${String(dnes.getMonth() + 1).padStart(2, "0")}-${String(dnes.getDate()).padStart(2, "0")}`;
-  const iso = dnes.toISOString().slice(0, 10);
-  const letosniZacatek = new Date(Date.UTC(dnes.getUTCFullYear(), 0, 1));
+  const mmdd = mmddPraha();
+  const iso = isoPraha();
+  const letosniZacatek = zacatekRokuUtc();
 
   const kandidati = await prisma.udalost.findMany({
     where: { datum: { in: [mmdd, iso] }, stav: { in: VEREJNE_STAVY } },
