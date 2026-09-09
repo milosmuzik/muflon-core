@@ -1,8 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import IndexCard from "@/components/IndexCard";
-import AutomatickaRevizeTlacitko from "@/components/AutomatickaRevizeTlacitko";
-import OpravaFeatTlacitko from "@/components/OpravaFeatTlacitko";
-import DoplnitKatalogTlacitko from "@/components/DoplnitKatalogTlacitko";
+import SdruzenaKontrolaTlacitko from "@/components/SdruzenaKontrolaTlacitko";
 import { pocetCekajicichNaWhitelist } from "@/lib/agent/automaticka-revize";
 import { pocetFeatKOprave } from "@/lib/agent/uklid-feat";
 import {
@@ -29,24 +27,26 @@ export default async function KontrolaPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="tab-label mb-2">Systém rozhoduje sám</p>
+        <p className="tab-label mb-2">Ručně, jeden klik</p>
         <h1 className="font-display text-2xl text-paper">Kontrola kvality</h1>
         <p className="text-muted text-sm mt-1">
-          {zbyva === 0
-            ? "Všechny příběhy a události už mají whitelistový zdroj, nebo jsou pryč."
-            : `${zbyva} příběhů a událostí čeká na rozhodnutí systému.`}
+          Automatický noční import je vypnutý. Vše běží jen tady.
         </p>
       </div>
 
-      <IndexCard label="Doplnit hudebníky a alba">
+      <IndexCard label="Sdružená kontrola">
         <p className="text-muted text-sm mb-3">
-          Nejdřív Metal Archives a MusicBrainz (bez kvóty). Gemini jen na chybějící text, a jen
-          když má kredit. Hudebníky ani alba nemaže.
+          Jedna dávka udělá feat/ft, doplní katalog (MA/MB), dohledá zdroje a ověří příběhy/události.
+          Klikni znovu, když zbývá práce. Nic se nespouští samo.
         </p>
-        <DoplnitKatalogTlacitko />
+        <p className="text-muted text-xs font-mono mb-3">
+          Čeká na whitelist: {zbyva} · feat/ft: {featKOprave} · bez zdroje: {celkemBezZdroje} ·
+          whitelist už drží {pribehyHotovo} příběhů a {udalostiHotovo} událostí
+        </p>
+        <SdruzenaKontrolaTlacitko />
       </IndexCard>
 
-      <IndexCard label="Bez zdroje (přehled)">
+      <IndexCard label="Bez zdroje (řehled)">
         {celkemBezZdroje === 0 ? (
           <p className="text-muted text-sm">Nic nechybí.</p>
         ) : (
@@ -68,28 +68,6 @@ export default async function KontrolaPage() {
             </ul>
           </>
         )}
-      </IndexCard>
-
-      <IndexCard label="Ověřit příběhy a události">
-        <p className="text-muted text-sm mb-3">
-          Jeden klik. Nejdřív whitelist a Metal Archives. Gemini jen když je kvóta. Při 429 se
-          dávka zastaví a návrhy se nemažou. Interprety, hudebníky, alba a skladby z playlistu
-          nesahá. Mazání je jen u příběhů a událostí, a jen po jistém „zdroj není“.
-        </p>
-        <AutomatickaRevizeTlacitko />
-        <p className="text-muted text-xs mt-3 font-mono">
-          Už drží whitelist: {pribehyHotovo} příběhů, {udalostiHotovo} událostí
-        </p>
-      </IndexCard>
-
-      <IndexCard label="Opravit feat / ft">
-        <p className="text-muted text-sm mb-3">
-          Falešné karty typu „Kapela Ft. Host“ se rozdělí. Nic se ti nepřidá ke schválení.
-        </p>
-        <OpravaFeatTlacitko />
-        <p className="text-muted text-xs mt-3 font-mono">
-          {featKOprave === 0 ? "Žádná falešná karta s feat/ft." : `${featKOprave} interpretů má feat/ft v názvu.`}
-        </p>
       </IndexCard>
     </div>
   );
