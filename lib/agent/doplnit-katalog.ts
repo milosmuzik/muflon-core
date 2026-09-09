@@ -41,7 +41,7 @@ const pauza = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function zeptatSeGemini(prompt: string): Promise<Nalez> {
   if (!geminiJeDostupne()) throw new GeminiQuotaError();
-  const text = await zavolejGemini(prompt, true);
+  const text = await zavolejGemini(prompt, { hledat: true, maxVystup: 500 });
   const parsed = vytahniJson(text);
   return parsed && typeof parsed === "object" ? (parsed as Nalez) : {};
 }
@@ -113,11 +113,14 @@ export async function doplnitHudebnika(id: string): Promise<RadekDoplneni> {
   }
   await pauza(1100);
 
-  const chybiText = !h.poznamka || !h.pseudonymy;
-  if (chybiText && geminiJeDostupne()) {
+  const chybiFakta =
+    (!h.datumNarozeni && !nalez.datumNarozeni) ||
+    (!h.datumUmrti && !nalez.datumUmrti && Boolean(h.datumNarozeni || nalez.datumNarozeni) === false) ||
+    (!h.pseudonymy && !nalez.pseudonymy && !h.datumNarozeni && !nalez.datumNarozeni);
+  if (chybiFakta && geminiJeDostupne()) {
     const zGemini = await zeptatSeGemini(
       `Hudebník: "${h.jmeno}". Kapely: ${kapely.join(", ") || "neznámé"}. Známé: narození=${h.datumNarozeni ?? nalez.datumNarozeni ?? "?"}, úmrtí=${h.datumUmrti ?? nalez.datumUmrti ?? "?"}, pseudonymy=${h.pseudonymy ?? "?"}.
-Najdi chybějící fakta (narození/úmrtí, pseudonymy, krátká poznámka) a ověřitelné URL.
+Najdi chybějící fakta (narození/úmrtí, pseudonymy) a ověřitelné URL. Poznámku piš jen když je krátká a ověřená.
 Vrať POUZE JSON: {"pseudonymy":null,"datumNarozeni":null,"datumUmrti":null,"poznamka":null,"zdroje":[{"nazev":"","url":"https://","kategorie":"oficialni_web|socialni_site|databaze|media|orientacni"}]}`,
     );
     if (!nalez.datumNarozeni && zGemini.datumNarozeni) nalez.datumNarozeni = zGemini.datumNarozeni;
@@ -187,10 +190,12 @@ export async function doplnitAlbum(id: string): Promise<RadekDoplneni> {
   }
   await pauza(1100);
 
-  if ((!a.poznamka || !a.vydavatel) && geminiJeDostupne()) {
+  const chybiFakta =
+    (!a.datumVydani && !nalez.datumVydani) || (!a.vydavatel && !nalez.vydavatel);
+  if (chybiFakta && geminiJeDostupne()) {
     const zGemini = await zeptatSeGemini(
       `Album: "${a.nazev}". Interpret: ${kapely.join(", ") || "neznámý"}. Známé: vydání=${a.datumVydani ?? nalez.datumVydani ?? "?"}, vydavatel=${a.vydavatel ?? nalez.vydavatel ?? "?"}.
-Najdi chybějící datum vydání, vydavatele, krátkou poznámku a ověřitelné URL.
+Najdi chybějící datum vydání, vydavatele a ověřitelné URL. Poznámku piš jen když je krátká a ověřená.
 Vrať POUZE JSON: {"datumVydani":null,"vydavatel":null,"poznamka":null,"zdroje":[{"nazev":"","url":"https://","kategorie":"oficialni_web|socialni_site|databaze|media|orientacni"}]}`,
     );
     if (!nalez.datumVydani && zGemini.datumVydani) nalez.datumVydani = zGemini.datumVydani;
@@ -222,7 +227,7 @@ Vrať POUZE JSON: {"datumVydani":null,"vydavatel":null,"poznamka":null,"zdroje":
   return { typ: "Album", id, nazev: a.nazev, href: `/alba/${id}`, zmeny, zdroje };
 }
 
-export async function doplnitKatalogDavku(limit = 4): Promise<VysledekDoplneni> {
+export async function doplnitKatalogDavku(limit = 2): Promise<VysledekDoplneni> {
   const zdroje = await prisma.zdroj.findMany({
     where: { cilovyTyp: { in: ["Hudebnik", "Album"] } },
     select: { cilovyTyp: true, cilovyId: true },
