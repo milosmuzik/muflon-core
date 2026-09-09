@@ -1,29 +1,13 @@
-// app/api/admin/import-karty/route.ts
-//
-// Chráněný endpoint pro dávkový import Referenčních karet (MS-2.0).
-// Volá ho MCP server jménem Claude - nikdy ho nedávej veřejně bez klíče.
-//
-// Vyžaduje env proměnnou IMPORT_API_KEY (vygeneruj vlastní náhodný
-// řetězec, stejně jako máš CRON_SECRET).
-//
-// Request:
-// POST /api/admin/import-karty
-// Header: X-Import-Key: <IMPORT_API_KEY>
-// Body: { "karty": [ {...}, {...} ] } (1-10 karet na volání)
-//
-// Response: { "vysledky": [ {...pocty...}, ... ] }
-
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { importujKartu, type Karta } from "@/lib/import-karta";
-
-const prisma = new PrismaClient();
 
 const MAX_KARET_NA_VOLANI = 10;
 
 export async function POST(req: NextRequest) {
+  const ocekavany = process.env.IMPORT_API_KEY;
   const klic = req.headers.get("x-import-key");
-  if (!klic || klic !== process.env.IMPORT_API_KEY) {
+  if (!ocekavany || !klic || klic !== ocekavany) {
     return NextResponse.json({ chyba: "Neplatný nebo chybějící X-Import-Key." }, { status: 401 });
   }
 
