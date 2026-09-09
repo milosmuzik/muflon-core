@@ -6,6 +6,12 @@
 // pravdy pro to, jak se karta zapisuje do DB.
 
 import { PrismaClient } from "@prisma/client";
+import {
+  AUTOSCHVALENI_OD_UROVNE,
+  nazevZeZdroje,
+  urovenDuveryPriorita,
+  urovenDuveryZeZdroje,
+} from "@/lib/constants";
 
 export type Clen = {
   jmeno: string;
@@ -67,6 +73,14 @@ export type VysledekImportu = {
   };
 };
 
+function duveraZdroje(z: Zdroj): string {
+  return urovenDuveryZeZdroje(z.kategorie, z.url ?? null);
+}
+
+function jdeAutoschvalit(zdroje: Zdroj[] | undefined): boolean {
+  return (zdroje ?? []).some((z) => urovenDuveryPriorita(duveraZdroje(z)) >= AUTOSCHVALENI_OD_UROVNE);
+}
+
 async function najdiNeboZaloz(prisma: PrismaClient, nazev: string) {
   let i = await prisma.interpret.findFirst({ where: { nazev } });
   if (!i) i = await prisma.interpret.create({ data: { nazev } });
@@ -78,6 +92,7 @@ export async function importujKartu(
   k: Karta
 ): Promise<VysledekImportu> {
   const interpret = await najdiNeboZaloz(prisma, k.nazev);
+  const smiSchvalitText = jdeAutoschvalit(k.zdroje);
 
   await prisma.interpret.update({
     where: { id: interpret.id },
@@ -162,64 +177,72 @@ export async function importujKartu(
   }
 
   let pocetUdalosti = 0;
-  for (const u of k.udalosti ?? []) {
-    const existuje = await prisma.udalost.findFirst({ where: { nazev: u.nazev } });
-    if (!existuje) {
-      const novaUdalost = await prisma.udalost.create({
-        data: {
-          nazev: u.nazev,
-          datum: u.datum,
-          typ: u.typ ?? "jina",
-          opakujeSe: true,
-          popis: u.popis ?? null,
-          stav: "overeno",
-        },
-      });
-      await prisma.vazba.create({
-        data: {
-          zdrojovyTyp: "Udalost",
-          zdrojovyId: novaUdalost.id,
-          cilovyTyp: "Interpret",
-          cilovyId: interpret.id,
-          typVztahu: "tyka_se",
-        },
-      });
-      pocetUdalosti++;
+  if (smiSchvalitText) {
+    for (const u of k.udalosti ?? []) {
+      const existuje = await prisma.udalost.findFirst({ where: { nazev: u.nazev } });
+      if (!existuje) {
+        const novaUdalost = await prisma.udalost.create({
+          data: {
+            nazev: u.nazev,
+            datum: u.datum,
+            typ: u.typ ?? "jina",
+            opakujeSe: true,
+            popis: u.popis ?? null,
+            stav: "schvaleno",
+          },
+        });
+        await prisma.vazba.create({
+          data: {
+            zdrojovyTyp: "Udalost",
+            zdrojovyId: novaUdalost.id,
+            cilovyTyp: "Interpret",
+            cilovyId: interpret.id,
+            typVztahu: "tyka_se",
+          },
+        });
+        pocetUdalosti++;
+      }
     }
   }
 
   let pocetPribehu = 0;
-  for (const p of k.pribehy ?? []) {
-    const existuje = await prisma.pribeh.findFirst({ where: { nadpis: p.nadpis } });
-    if (!existuje) {
-      const novyPribeh = await prisma.pribeh.create({ data: { nadpis: p.nadpis, obsah: p.obsah, stav: "overeno" } });
-      await prisma.vazba.create({
-        data: {
-          zdrojovyTyp: "Pribeh",
-          zdrojovyId: novyPribeh.id,
-          cilovyTyp: "Interpret",
-          cilovyId: interpret.id,
-          typVztahu: "vypráví o",
-        },
-      });
-      pocetPribehu++;
+  if (smiSchvalitText) {
+    for (const p of k.pribehy ?? []) {
+      const existuje = await prisma.pribeh.findFirst({ where: { nadpis: p.nadpis } });
+      if (!existuje) {
+        const novyPribeh = await prisma.pribeh.create({
+          data: { nadpis: p.nadpis, obsah: p.obsah, stav: "schvaleno" },
+        });
+        await prisma.vazba.create({
+          data: {
+            zdrojovyTyp: "Pribeh",
+            zdrojovyId: novyPribeh.id,
+            cilovyTyp: "Interpret",
+            cilovyId: interpret.id,
+            typVztahu: "vypráví o",
+          },
+        });
+        pocetPribehu++;
+      }
     }
   }
 
   let pocetZdroju = 0;
   for (const z of k.zdroje ?? []) {
+    const url = z.url ?? null;
+    const uroverDuvery = duveraZdroje(z);
     const existuje = await prisma.zdroj.findFirst({
-      where: { cilovyTyp: "Interpret", cilovyId: interpret.id, url: z.url ?? undefined, nazev: z.nazev },
+      where: { cilovyTyp: "Interpret", cilovyId: interpret.id, url: url ?? undefined, nazev: z.nazev },
     });
     if (!existuje) {
       await prisma.zdroj.create({
         data: {
           cilovyTyp: "Interpret",
           cilovyId: interpret.id,
-          nazev: z.nazev,
-          url: z.url ?? null,
+          nazev: nazevZeZdroje(url, z.nazev),
+          url,
           kategorie: z.kategorie,
-          uroverDuvery: z.uroverDuvery ?? "vysoka",
+          uroverDuvery,
         },
       });
       pocetZdroju++;
