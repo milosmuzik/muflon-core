@@ -46,7 +46,7 @@ export default async function KontrolaPage() {
         <SdruzenaKontrolaTlacitko />
       </IndexCard>
 
-      <IndexCard label="Bez zdroje (řehled)">
+      <IndexCard label="Bez zdroje (přehled)">
         {celkemBezZdroje === 0 ? (
           <p className="text-muted text-sm">Nic nechybí.</p>
         ) : (
