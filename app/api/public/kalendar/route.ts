@@ -1,21 +1,8 @@
-// app/api/public/kalendar/route.ts
-//
-// Veřejný, neautentizovaný endpoint pro "co se stalo v hudbě dnes" -
-// používá ho web Rádia Muflon pro sekci Muflóní kalendář.
-//
-// Request:
-// GET /api/public/kalendar
-//
-// Response:
-// { "udalosti": [{ "nazev", "typ", "popis" }] }
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isoPraha, mmddPraha } from "@/lib/cas";
 
 const CORS_HEADERS = { "Access-Control-Allow-Origin": "*" };
-
-// Jen dost prověřené záznamy smí ven veřejně - stejná politika jako
-// u ostatních veřejných endpointů (viz app/api/public/kapela).
 const VEREJNE_STAVY = ["schvaleno", "publikovano"];
 
 export async function OPTIONS() {
@@ -23,9 +10,8 @@ export async function OPTIONS() {
 }
 
 export async function GET() {
-  const dnes = new Date();
-  const mmdd = `${String(dnes.getMonth() + 1).padStart(2, "0")}-${String(dnes.getDate()).padStart(2, "0")}`;
-  const iso = dnes.toISOString().slice(0, 10);
+  const mmdd = mmddPraha();
+  const iso = isoPraha();
 
   const udalosti = await prisma.udalost.findMany({
     where: { datum: { in: [mmdd, iso] }, stav: { in: VEREJNE_STAVY } },
@@ -33,5 +19,5 @@ export async function GET() {
     select: { nazev: true, typ: true, popis: true },
   });
 
-  return NextResponse.json({ udalosti }, { headers: CORS_HEADERS });
+  return NextResponse.json({ udalosti, den: mmdd }, { headers: CORS_HEADERS });
 }
