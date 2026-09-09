@@ -11,10 +11,6 @@
     {
       "path": "/api/cron/revize",
       "schedule": "30 7 * * *"
-    },
-    {
-      "path": "/api/cron/doplnit-katalog",
-      "schedule": "0 * * * *"
     }
   ]
 }
