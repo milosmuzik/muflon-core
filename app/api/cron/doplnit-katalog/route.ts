@@ -2,14 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { doplnitKatalogDavku } from "@/lib/agent/doplnit-katalog";
 import { geminiJeDostupne } from "@/lib/agent/gemini";
+import { overCron } from "@/lib/over-cron";
 
 export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
-  const hlavicka = request.headers.get("authorization");
-  if (hlavicka !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Neautorizováno" }, { status: 401 });
-  }
+  const zamitnout = overCron(request);
+  if (zamitnout) return zamitnout;
 
   try {
     const [celkem, hotovo] = await Promise.all([

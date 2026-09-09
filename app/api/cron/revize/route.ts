@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { spustitAutomatickouRevizi } from "@/lib/agent/automaticka-revize";
+import { overCron } from "@/lib/over-cron";
 
 export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
-  const hlavicka = request.headers.get("authorization");
-  if (hlavicka !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Neautorizováno" }, { status: 401 });
-  }
+  const zamitnout = overCron(request);
+  if (zamitnout) return zamitnout;
 
   try {
     const vysledek = await spustitAutomatickouRevizi();
