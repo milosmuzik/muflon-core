@@ -59,7 +59,7 @@ export default function SdruzenaKontrolaTlacitko() {
         onClick={spustit}
         className="bg-accentDim/30 border border-accent/40 text-accent rounded-sm px-3 py-1.5 hover:bg-accentDim/50 transition-colors focus-ring text-sm disabled:opacity-50"
       >
-        {bezi ? `Вěží dávka ${davka + 1}… nech tab otevřený` : "Spustit sdruženou kontrolu"}
+        {bezi ? `Běží dávka ${davka + 1}… nech tab otevřený` : "Spustit sdruženou kontrolu"}
       </button>
       {davka > 0 && (
         <p className="mt-3 text-sm text-paper">
