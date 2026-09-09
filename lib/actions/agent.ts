@@ -8,7 +8,7 @@ export async function spustitAgentaRucne(
   _predchoziStav: VysledekAgenta,
   _formData: FormData
 ): Promise<VysledekAgenta> {
-  const vysledek = await vygenerovatNavrhyKalendare(7);
+  const vysledek = await vygenerovatNavrhyKalendare(1);
   revalidatePath("/udalosti");
   return vysledek;
 }

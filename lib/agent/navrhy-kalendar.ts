@@ -16,6 +16,8 @@ const NAZVY_MESICU_2P = [
   "července", "srpna", "září", "října", "listopadu", "prosince",
 ];
 
+const MAX_UDALOSTI_NA_DEN = 3;
+
 type NavrzenaUdalost = {
   nazev: string;
   typ: "vyroci_alba" | "narozeniny" | "umrti" | "jina";
@@ -52,26 +54,31 @@ export type VysledekAgenta = {
   chyby: string[];
 };
 
-export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<VysledekAgenta> {
+export async function vygenerovatNavrhyKalendare(pocetDni = 1): Promise<VysledekAgenta> {
   if (!geminiJeDostupne()) throw new GeminiQuotaError("Chybí GEMINI_API_KEY nebo je kvóta vyčerpaná.");
 
+  const dni = Math.max(1, Math.min(pocetDni, 3));
   let navrzeno = 0;
   let preskoceno = 0;
   let bezDostatecnehoZdroje = 0;
   const chyby: string[] = [];
 
-  for (let i = 0; i < pocetDni; i++) {
+  for (let i = 0; i < dni; i++) {
     const datum = new Date();
     datum.setDate(datum.getDate() + i);
     const den = datum.getDate();
     const mesic = datum.getMonth() + 1;
     const mmdd = `${String(mesic).padStart(2, "0")}-${String(den).padStart(2, "0")}`;
     try {
-      const surovaOdpoved = await zavolejGemini(sestavPrompt(den, mesic), true);
+      const existujiciTentoDen = await prisma.udalost.findMany({ where: { datum: mmdd }, select: { nazev: true } });
+      if (existujiciTentoDen.length >= MAX_UDALOSTI_NA_DEN) {
+        preskoceno += existujiciTentoDen.length;
+        continue;
+      }
+      const surovaOdpoved = await zavolejGemini(sestavPrompt(den, mesic), { hledat: true, maxVystup: 700 });
       const polozky = vytahniPole(surovaOdpoved);
       for (const polozka of polozky) {
         if (!polozka.nazev || !polozka.zdroje?.length) continue;
-        const existujiciTentoDen = await prisma.udalost.findMany({ where: { datum: mmdd }, select: { nazev: true } });
         if (existujiciTentoDen.some((u) => jsouDuplicitni(u.nazev, polozka.nazev))) {
           preskoceno++;
           continue;
@@ -108,6 +115,7 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
             zverejnitNaSitich: false,
           },
         });
+        existujiciTentoDen.push({ nazev: novaUdalost.nazev });
         for (const zdroj of vyhodnoceneZdroje) {
           await prisma.zdroj.create({
             data: {
@@ -131,5 +139,5 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 7): Promise<Vysledek
     }
   }
 
-  return { zpracovanoDni: pocetDni, navrzeno, preskoceno, bezDostatecnehoZdroje, chyby };
+  return { zpracovanoDni: dni, navrzeno, preskoceno, bezDostatecnehoZdroje, chyby };
 }

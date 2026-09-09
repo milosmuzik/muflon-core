@@ -22,16 +22,28 @@ function uzavriObvod(ms: number) {
   obvodDo = Math.max(obvodDo, Date.now() + ms);
 }
 
-export async function zavolejGemini(prompt: string, sHledanim = true): Promise<string> {
+type GeminiVolani = {
+  hledat?: boolean;
+  maxVystup?: number;
+};
+
+export async function zavolejGemini(prompt: string, volba: boolean | GeminiVolani = false): Promise<string> {
   const apiKlic = process.env.GEMINI_API_KEY;
   if (!apiKlic) throw new GeminiQuotaError("Chybí GEMINI_API_KEY.");
   if (Date.now() < obvodDo) throw new GeminiQuotaError();
+
+  const sHledanim = typeof volba === "boolean" ? volba : Boolean(volba.hledat);
+  const maxVystup = typeof volba === "boolean" ? (sHledanim ? 800 : 1200) : (volba.maxVystup ?? (sHledanim ? 800 : 1200));
 
   const odpoved = await fetch(`${GEMINI_URL}?key=${apiKlic}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        maxOutputTokens: maxVystup,
+        temperature: 0.2,
+      },
       ...(sHledanim ? { tools: [{ google_search: {} }] } : {}),
     }),
   });
