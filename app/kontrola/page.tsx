@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import IndexCard from "@/components/IndexCard";
 import SdruzenaKontrolaTlacitko from "@/components/SdruzenaKontrolaTlacitko";
+import KatalogovaDavkaTlacitko from "@/components/KatalogovaDavkaTlacitko";
 import { pocetCekajicichNaWhitelist } from "@/lib/agent/automaticka-revize";
 import { pocetFeatKOprave } from "@/lib/agent/uklid-feat";
 import {
@@ -30,14 +31,21 @@ export default async function KontrolaPage() {
         <p className="tab-label mb-2">Ručně, jeden klik</p>
         <h1 className="font-display text-2xl text-paper">Kontrola kvality</h1>
         <p className="text-muted text-sm mt-1">
-          Automatický noční import je vypnutý. Vše běží jen tady.
+          Automatický noční import je vypnutý. Výročí se berou z katalogu, ne z Gemini.
         </p>
       </div>
 
+      <IndexCard label="Katalog → kalendář a příběhy">
+        <p className="text-muted text-sm mb-3">
+          Nejdřív odpad. Pak výročí z dat alb a hudebníků (MusicBrainz jen když datum chybí).
+          Příběhy ze stávající historie, Gemini jen když text není — max 10.
+        </p>
+        <KatalogovaDavkaTlacitko />
+      </IndexCard>
+
       <IndexCard label="Sdružená kontrola">
         <p className="text-muted text-sm mb-3">
-          Jedna dávka udělá feat/ft, doplní katalog (MA/MB), dohledá zdroje a ověří příběhy/události.
-          Klikni znovu, když zbývá práce. Nic se nespouští samo.
+          Odpad, feat, výročí, katalog, zdroje, revize. Nic se nespouští samo.
         </p>
         <p className="text-muted text-xs font-mono mb-3">
           Čeká na whitelist: {zbyva} · feat/ft: {featKOprave} · bez zdroje: {celkemBezZdroje} ·

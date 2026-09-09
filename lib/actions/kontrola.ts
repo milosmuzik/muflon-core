@@ -13,6 +13,9 @@ import {
   doplnitKatalogDavku,
   type VysledekDoplneni,
 } from "@/lib/agent/doplnit-katalog";
+import { smazatOdpadoveInterprety, type VysledekUkliduOdpadu } from "@/lib/agent/uklid-odpad";
+import { doplnitVyrociZKatalogu, type VysledekVyroci } from "@/lib/agent/vyroci-z-katalogu";
+import { doplnitChybejiciPribehy, type VysledekPribehu } from "@/lib/agent/doplnit-pribehy";
 
 function revalidateKontrola() {
   revalidatePath("/kontrola");
@@ -37,6 +40,8 @@ const PRAZDNY_VYSLEDEK: VysledekAutomatickeRevize = {
 };
 
 export type VysledekSdruzeneKontroly = {
+  odpad: VysledekUkliduOdpadu;
+  vyroci: VysledekVyroci;
   katalog: VysledekDoplneni;
   feat: VysledekUkliduFeat;
   zdroje: VysledekDohledani;
@@ -46,6 +51,8 @@ export type VysledekSdruzeneKontroly = {
 
 export async function spustitSdruzeneKontrolu(): Promise<VysledekSdruzeneKontroly> {
   const chyby: string[] = [];
+  let odpad: VysledekUkliduOdpadu = { nalezeno: 0, smazano: 0, nazvy: [] };
+  let vyroci: VysledekVyroci = { alba: 0, hudebnici: 0, doplnenaData: 0, preskoceno: 0, chyby: [] };
   let katalog: VysledekDoplneni = { zpracovano: 0, doplneno: 0, zdroje: 0, polozky: [], chyby: [] };
   let feat: VysledekUkliduFeat = {
     opravenoInterpretu: 0,
@@ -65,10 +72,23 @@ export async function spustitSdruzeneKontrolu(): Promise<VysledekSdruzeneKontrol
   let revize: VysledekAutomatickeRevize = { ...PRAZDNY_VYSLEDEK };
 
   try {
+    odpad = await smazatOdpadoveInterprety();
+  } catch (e) {
+    chyby.push((e as Error).message || "Úklid odpadu selhal.");
+  }
+
+  try {
     feat = await opravitFeatDavku();
     chyby.push(...feat.chyby);
   } catch (e) {
     chyby.push((e as Error).message || "Oprava feat selhala.");
+  }
+
+  try {
+    vyroci = await doplnitVyrociZKatalogu(4);
+    chyby.push(...vyroci.chyby);
+  } catch (e) {
+    chyby.push((e as Error).message || "Výročí z katalogu selhala.");
   }
 
   try {
@@ -93,7 +113,25 @@ export async function spustitSdruzeneKontrolu(): Promise<VysledekSdruzeneKontrol
   }
 
   revalidateKontrola();
-  return { katalog, feat, zdroje, revize, chyby: chyby.slice(-12) };
+  return { odpad, vyroci, katalog, feat, zdroje, revize, chyby: chyby.slice(-12) };
+}
+
+export async function spustitUklidOdpadu(): Promise<VysledekUkliduOdpadu> {
+  const v = await smazatOdpadoveInterprety();
+  revalidateKontrola();
+  return v;
+}
+
+export async function spustitVyrociZKatalogu(): Promise<VysledekVyroci> {
+  const v = await doplnitVyrociZKatalogu(6);
+  revalidateKontrola();
+  return v;
+}
+
+export async function spustitDoplneniPribehu(): Promise<VysledekPribehu> {
+  const v = await doplnitChybejiciPribehy(10);
+  revalidateKontrola();
+  return v;
 }
 
 export async function spustitAutomatickouReviziRucne(
