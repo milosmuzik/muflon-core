@@ -1,17 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import { spustitAutomatickouRevizi } from "@/lib/agent/automaticka-revize";
-import { overCron } from "@/lib/over-cron";
+import { NextResponse } from "next/server";
 
-export const maxDuration = 60;
-
-export async function GET(request: NextRequest) {
-  const zamitnout = overCron(request);
-  if (zamitnout) return zamitnout;
-
-  try {
-    const vysledek = await spustitAutomatickouRevizi();
-    return NextResponse.json(vysledek);
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
-  }
+export async function GET() {
+  return NextResponse.json(
+    { error: "Automatická revize je vypnutá. Použij /kontrola." },
+    { status: 410 },
+  );
 }
