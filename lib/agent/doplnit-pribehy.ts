@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
-import { geminiJeDostupne, jeKvotaChyba, zavolejGemini } from "@/lib/agent/gemini";
 
 export type VysledekPribehu = {
   zeSablony: number;
@@ -36,7 +35,7 @@ async function ulozPribeh(interpretId: string, nazev: string, nadpis: string, ob
 export async function doplnitChybejiciPribehy(limit = 10): Promise<VysledekPribehu> {
   const chyby: string[] = [];
   let zeSablony = 0;
-  let zGemini = 0;
+  const zGemini = 0;
   let preskoceno = 0;
 
   const vPlaylistu = await prisma.skladbaInterpret.findMany({
@@ -70,31 +69,7 @@ export async function doplnitChybejiciPribehy(limit = 10): Promise<VysledekPribe
       }
       continue;
     }
-
-    if (!geminiJeDostupne()) {
-      preskoceno++;
-      continue;
-    }
-
-    const fakta = [i.nazev, i.zeme, i.rokVzniku ? `vznik ${i.rokVzniku}` : "", historie]
-      .filter(Boolean)
-      .join(", ");
-    try {
-      const text = await zavolejGemini(
-        `Napiš česky 2 krátké věty o kapele pro rádio (rock/metal). Jen ověřená fakta z tohoto vstupu, nic si nevymýšlej. Bez úvodu, bez markdownu.\n\n${fakta}`,
-        false,
-      );
-      const obsah = text.replace(/^"|"$/g, "").trim();
-      if (obsah.length < 40) {
-        preskoceno++;
-        continue;
-      }
-      await ulozPribeh(i.id, i.nazev, i.nazev, obsah.slice(0, 800), "navrh");
-      zGemini++;
-    } catch (e) {
-      chyby.push(`${i.nazev}: ${(e as Error).message}`);
-      if (jeKvotaChyba(e)) break;
-    }
+    preskoceno++;
   }
 
   return {
