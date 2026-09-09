@@ -15,7 +15,7 @@ export async function podpis(tajemstvi: string): Promise<string> {
 }
 
 export async function cookiePlatne(hodnota: string | undefined, heslo: string | undefined): Promise<boolean> {
-  if (!heslo) return true;
+  if (!heslo) return process.env.NODE_ENV !== "production";
   if (!hodnota) return false;
   return hodnota === (await podpis(heslo));
 }
