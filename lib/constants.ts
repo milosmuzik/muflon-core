@@ -51,6 +51,13 @@ export const TYPY_ENTIT: Record<string, string> = {
   Udalost: "Událost",
 };
 
+export const TYP_UDALOSTI_LABEL: Record<string, string> = {
+  vyroci_alba: "Výročí alba",
+  narozeniny: "Narozeniny",
+  umrti: "Úmrtí",
+  jina: "Jiná událost",
+};
+
 // Hierarchie zdrojů pro tvorbu příběhů (Muflon Core Bible).
 // Pořadí = priorita/důvěryhodnost, nejnižší číslo = nejvyšší priorita.
 export const KATEGORIE_ZDROJE: { klic: string; priorita: number; label: string }[] = [
