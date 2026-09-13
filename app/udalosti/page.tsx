@@ -5,13 +5,7 @@ import AgentTlacitko from "@/components/AgentTlacitko";
 import IndexCard from "@/components/IndexCard";
 import StatusBadge from "@/components/StatusBadge";
 import Link from "next/link";
-
-const TYP_LABEL: Record<string, string> = {
-  vyroci_alba: "Výročí alba",
-  narozeniny: "Narozeniny",
-  umrti: "Úmrtí",
-  jina: "Jiná událost",
-};
+import { TYP_UDALOSTI_LABEL } from "@/lib/constants";
 
 export default async function UdalostiPage({ searchParams }: { searchParams: { filtr?: string } }) {
   const jenAiNavrhy = searchParams.filtr === "ai";
@@ -66,7 +60,7 @@ export default async function UdalostiPage({ searchParams }: { searchParams: { f
           <div key={u.id} className="flex items-center justify-between gap-4 px-5 py-2.5 pl-8 hover:bg-raised transition-colors">
             <Link href={`/udalosti/${u.id}`} className="min-w-0">
               <span className="text-paper text-sm">{u.nazev}</span>
-              <span className="text-muted text-xs font-mono ml-2">{TYP_LABEL[u.typ] ?? u.typ} · {u.datum}</span>
+              <span className="text-muted text-xs font-mono ml-2">{TYP_UDALOSTI_LABEL[u.typ] ?? u.typ} · {u.datum}</span>
               {u.zdrojAI && <span className="text-accent text-xs font-mono ml-2">AI návrh</span>}
             </Link>
             <div className="flex items-center gap-3 shrink-0">
