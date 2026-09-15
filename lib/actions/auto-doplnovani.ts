@@ -7,112 +7,84 @@ import { doplnitVyrociZKatalogu } from "@/lib/agent/vyroci-z-katalogu";
 import { doplnitChybejiciPribehy } from "@/lib/agent/doplnit-pribehy";
 
 /**
- * Bezpečné časové okno na 1 spuštění. Endpoint má maxDuration 60 (Hobby
- * strop) – tohle je vědomě výrazně níž, protože tahle automatika má v rámci
- * sdíleného Vercel účtu nejnižší prioritu (muflon-core a muflon-stats musí
- * vždy běžet, viz [[muflon-core]]). Radši skončit dřív a nechat prostor pro
- * ně, než balancovat na hraně tvrdého timeoutu.
+ * Jedno spuštění = JEDNA kategorie (katalog / výročí / příběhy), nikdy
+ * všechny tři za sebou. Kategorie se střídají podle času (rotace po
+ * 15minutových oknech) – při volání co 15 minut z cron-job.org se tak v
+ * praxi projdou rovnoměrně všechny tři.
+ *
+ * Důvod: doplnitKatalogDavku dělá pro KAŽDOU položku v dávce sekvenční
+ * volání na MusicBrainz i Metal Archives (až 8 s timeout na každé) – i malá
+ * dávka tak v nejhorším případě (obě služby pomalé/nedostupné) může trvat
+ * desítky sekund. Spuštění víc kategorií za sebou v jednom běhu tyhle časy
+ * sčítalo a snadno přesáhlo 60s tvrdý strop Vercelu (přesně tohle způsobilo
+ * 504 při prvním ostrém testu). Jedna kategorie na spuštění drží worst-case
+ * bezpečně pod stropem – čísla u DAVKA_* níž jsou spočtená proti tomuhle:
+ *   - katalog (1 položka): až 2×8s (MA+MB) + pauzy + až 25s Gemini ≈ 42s
+ *   - výročí (jen MusicBrainz, bez umělé pauzy): 4×8s ≈ 32s
+ *   - příběhy (jedno dávkové Gemini volání bez ohledu na počet položek): ≈25s
  */
-const CASOVY_ROZPOCET_MS = 30_000;
-
-const DAVKA_KATALOG = 4;
+const DAVKA_KATALOG = 1;
 const DAVKA_VYROCI = 4;
 const DAVKA_PRIBEHY = 6;
 
+type Kategorie = "katalog" | "vyroci" | "pribehy";
+
+function vyberKategorii(): Kategorie {
+  const okno = Math.floor(Date.now() / (15 * 60 * 1000));
+  const poradi: Kategorie[] = ["katalog", "vyroci", "pribehy"];
+  return poradi[okno % 3];
+}
+
 export type VysledekAutoDoplnovani = {
-  kol: number;
+  kategorie: Kategorie;
   katalog: { zpracovano: number; doplneno: number };
   vyroci: { alba: number; hudebnici: number; doplnenaData: number };
   pribehy: { zeSablony: number; zGemini: number };
-  zastavenoDuvod: "cas" | "rozpocet" | "nicKDoplneni";
+  zastavenoDuvod: "rozpocet" | "hotovo";
   groundedDnesNaKonci: number;
   chyby: string[];
 };
 
 export async function spustitAutomatickeDoplnovani(): Promise<VysledekAutoDoplnovani> {
-  const zacatek = Date.now();
   const chyby: string[] = [];
+  const kategorie = vyberKategorii();
   const souhrn: VysledekAutoDoplnovani = {
-    kol: 0,
+    kategorie,
     katalog: { zpracovano: 0, doplneno: 0 },
     vyroci: { alba: 0, hudebnici: 0, doplnenaData: 0 },
     pribehy: { zeSablony: 0, zGemini: 0 },
-    zastavenoDuvod: "nicKDoplneni",
+    zastavenoDuvod: "hotovo",
     groundedDnesNaKonci: 0,
     chyby,
   };
 
-  let hotovoKatalog = false;
-  let hotovoVyroci = false;
-  let hotovoPribehy = false;
+  const zbyva = await zbyvaProAutomatiku();
+  if (zbyva <= 0) {
+    souhrn.zastavenoDuvod = "rozpocet";
+    souhrn.groundedDnesNaKonci = (await stavRozpoctu()).groundedDnes;
+    return souhrn;
+  }
 
-  while (true) {
-    if (Date.now() - zacatek > CASOVY_ROZPOCET_MS) {
-      souhrn.zastavenoDuvod = "cas";
-      break;
+  try {
+    if (kategorie === "katalog") {
+      const v = await doplnitKatalogDavku(DAVKA_KATALOG);
+      souhrn.katalog.zpracovano = v.zpracovano;
+      souhrn.katalog.doplneno = v.doplneno;
+      chyby.push(...v.chyby);
+    } else if (kategorie === "vyroci") {
+      const v = await doplnitVyrociZKatalogu(DAVKA_VYROCI);
+      souhrn.vyroci.alba = v.alba;
+      souhrn.vyroci.hudebnici = v.hudebnici;
+      souhrn.vyroci.doplnenaData = v.doplnenaData;
+      chyby.push(...v.chyby);
+    } else {
+      const v = await doplnitChybejiciPribehy(DAVKA_PRIBEHY);
+      souhrn.pribehy.zeSablony = v.zeSablony;
+      souhrn.pribehy.zGemini = v.zGemini;
+      chyby.push(...v.chyby);
     }
-
-    const zbyva = await zbyvaProAutomatiku();
-    if (zbyva <= 0) {
-      souhrn.zastavenoDuvod = "rozpocet";
-      break;
-    }
-
-    if (hotovoKatalog && hotovoVyroci && hotovoPribehy) {
-      souhrn.zastavenoDuvod = "nicKDoplneni";
-      break;
-    }
-
-    souhrn.kol += 1;
-    let necoSeStalo = false;
-
-    if (!hotovoKatalog) {
-      try {
-        const v = await doplnitKatalogDavku(DAVKA_KATALOG);
-        souhrn.katalog.zpracovano += v.zpracovano;
-        souhrn.katalog.doplneno += v.doplneno;
-        chyby.push(...v.chyby);
-        if (v.zpracovano === 0) hotovoKatalog = true;
-        else necoSeStalo = true;
-      } catch (e) {
-        chyby.push(`Katalog: ${(e as Error).message || "selhalo"}`);
-        hotovoKatalog = true;
-      }
-    }
-
-    if (!hotovoVyroci) {
-      try {
-        const v = await doplnitVyrociZKatalogu(DAVKA_VYROCI);
-        souhrn.vyroci.alba += v.alba;
-        souhrn.vyroci.hudebnici += v.hudebnici;
-        souhrn.vyroci.doplnenaData += v.doplnenaData;
-        chyby.push(...v.chyby);
-        if (v.alba === 0 && v.hudebnici === 0) hotovoVyroci = true;
-        else necoSeStalo = true;
-      } catch (e) {
-        chyby.push(`Výročí: ${(e as Error).message || "selhalo"}`);
-        hotovoVyroci = true;
-      }
-    }
-
-    if (!hotovoPribehy) {
-      try {
-        const v = await doplnitChybejiciPribehy(DAVKA_PRIBEHY);
-        souhrn.pribehy.zeSablony += v.zeSablony;
-        souhrn.pribehy.zGemini += v.zGemini;
-        chyby.push(...v.chyby);
-        if (v.zeSablony === 0 && v.zGemini === 0 && v.zbyva === 0) hotovoPribehy = true;
-        else necoSeStalo = true;
-      } catch (e) {
-        chyby.push(`Příběhy: ${(e as Error).message || "selhalo"}`);
-        hotovoPribehy = true;
-      }
-    }
-
-    if (!necoSeStalo && hotovoKatalog && hotovoVyroci && hotovoPribehy) {
-      souhrn.zastavenoDuvod = "nicKDoplneni";
-      break;
-    }
+  } catch (e) {
+    chyby.push(`${kategorie}: ${(e as Error).message || "selhalo"}`);
   }
 
   souhrn.groundedDnesNaKonci = (await stavRozpoctu()).groundedDnes;
