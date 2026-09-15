@@ -131,9 +131,19 @@ export async function spustitVyrociZKatalogu(): Promise<VysledekVyroci> {
 }
 
 export async function spustitDoplneniPribehu(): Promise<VysledekPribehu> {
-  const v = await doplnitChybejiciPribehy(10);
-  revalidateKontrola();
-  return v;
+  try {
+    const v = await doplnitChybejiciPribehy(10);
+    revalidateKontrola();
+    return v;
+  } catch (e) {
+    return {
+      zeSablony: 0,
+      zGemini: 0,
+      preskoceno: 0,
+      zbyva: 0,
+      chyby: [(e as Error).message || "Psaní příběhů selhalo."],
+    };
+  }
 }
 
 export async function spustitAutomatickouReviziRucne(
