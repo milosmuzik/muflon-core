@@ -86,7 +86,21 @@ export function urovenDuveryPriorita(uroven: string): number {
   const idx = UROVEN_DUVERY_PORADI.indexOf(uroven as (typeof UROVEN_DUVERY_PORADI)[number]);
   return idx === -1 ? 0 : idx;
 }
+/**
+ * Timeout pro fetch na externí databáze (Metal Archives, MusicBrainz) a na
+ * rozbalení Google grounding redirectu. Jedna pomalá/zaseknutá odpověď by
+ * bez limitu mohla vyčerpat celý časový rozpočet dávkového cronu (viz
+ * incident "Status 0" 13.-14. 9. 2026) – radši selhat rychle na jedné
+ * položce a pokračovat dál, než nechat viset celou dávku.
+ */
+export const EXTERNI_ZDROJ_TIMEOUT_MS = 8000;
 
+/**
+ * Timeout pro volání Gemini API. Vyšší než u externích databází, protože
+ * generování (a hlavně groundované vyhledávání) trvá déle, ale pořád musí
+ * mít strop – jinak jedno zaseknuté volání spolyká zbytek dávky/cronu.
+ */
+export const GEMINI_TIMEOUT_MS = 25000;
 // Renomovaná rocková/metalová média a databáze s historií – redakcí ručně
 // odsouhlasený seznam domén (stav k 29. 8. 2026, viz redakční poznámka u
 // jednotlivých skupin). Zdroj v kategorii "media" nebo "databaze" počítá
