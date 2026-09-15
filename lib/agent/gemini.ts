@@ -1,4 +1,5 @@
 import { pripravSeNaGrounded, zaznamenejGrounded, zavriJistic } from "@/lib/agent/rozpocet";
+import { GEMINI_TIMEOUT_MS } from "@/lib/constants";
 
 export class GeminiQuotaError extends Error {
   constructor(message = "Gemini kvóta vyčerpaná. Dávka zastavena, nic se nemazalo.") {
@@ -46,18 +47,27 @@ export async function zavolejGemini(prompt: string, volba: boolean | GeminiVolan
     if (!povoleni.ok) throw new GeminiQuotaError(povoleni.duvod);
   }
 
-  const odpoved = await fetch(`${GEMINI_URL}?key=${apiKlic}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        maxOutputTokens: maxVystup,
-        temperature: 0.2,
-      },
-      ...(sHledanim ? { tools: [{ google_search: {} }] } : {}),
-    }),
-  });
+  let odpoved: Response;
+  try {
+    odpoved = await fetch(`${GEMINI_URL}?key=${apiKlic}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          maxOutputTokens: maxVystup,
+          temperature: 0.2,
+        },
+        ...(sHledanim ? { tools: [{ google_search: {} }] } : {}),
+      }),
+      signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
+    });
+  } catch (e) {
+    if ((e as Error)?.name === "TimeoutError" || (e as Error)?.name === "AbortError") {
+      throw new Error(`Gemini API neodpověděla do ${GEMINI_TIMEOUT_MS / 1000}s (timeout).`);
+    }
+    throw e;
+  }
 
   if (odpoved.status === 429 || odpoved.status === 503) {
     const text = await odpoved.text();
