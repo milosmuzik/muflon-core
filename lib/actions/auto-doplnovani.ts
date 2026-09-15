@@ -27,6 +27,23 @@ const DAVKA_KATALOG = 1;
 const DAVKA_VYROCI = 4;
 const DAVKA_PRIBEHY = 6;
 
+/**
+ * Tvrdý vnitřní strop na zpracování - bez ohledu na PŘÍČINU pomalosti
+ * (pomalé MusicBrainz/Metal Archives, "studená" Neon databáze po
+ * nečinnosti, cokoliv jiného) se funkce vždy vrátí nejpozději za tuhle
+ * dobu, ať ji Vercel nezabije tvrdě po 60 s bez jakékoliv odpovědi.
+ */
+const VNITRNI_TIMEOUT_MS = 45_000;
+
+function sTimeoutem<T>(slib: Promise<T>, popis: string): Promise<T> {
+  return Promise.race([
+    slib,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${popis}: překročen vnitřní limit ${VNITRNI_TIMEOUT_MS / 1000}s`)), VNITRNI_TIMEOUT_MS)
+    ),
+  ]);
+}
+
 type Kategorie = "katalog" | "vyroci" | "pribehy";
 
 function vyberKategorii(): Kategorie {
@@ -67,18 +84,18 @@ export async function spustitAutomatickeDoplnovani(): Promise<VysledekAutoDoplno
 
   try {
     if (kategorie === "katalog") {
-      const v = await doplnitKatalogDavku(DAVKA_KATALOG);
+      const v = await sTimeoutem(doplnitKatalogDavku(DAVKA_KATALOG), "Katalog");
       souhrn.katalog.zpracovano = v.zpracovano;
       souhrn.katalog.doplneno = v.doplneno;
       chyby.push(...v.chyby);
     } else if (kategorie === "vyroci") {
-      const v = await doplnitVyrociZKatalogu(DAVKA_VYROCI);
+      const v = await sTimeoutem(doplnitVyrociZKatalogu(DAVKA_VYROCI), "Výročí");
       souhrn.vyroci.alba = v.alba;
       souhrn.vyroci.hudebnici = v.hudebnici;
       souhrn.vyroci.doplnenaData = v.doplnenaData;
       chyby.push(...v.chyby);
     } else {
-      const v = await doplnitChybejiciPribehy(DAVKA_PRIBEHY);
+      const v = await sTimeoutem(doplnitChybejiciPribehy(DAVKA_PRIBEHY), "Příběhy");
       souhrn.pribehy.zeSablony = v.zeSablony;
       souhrn.pribehy.zGemini = v.zGemini;
       chyby.push(...v.chyby);
