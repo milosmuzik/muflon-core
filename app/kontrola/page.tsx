@@ -13,6 +13,7 @@ import { prehledBezZdroje } from "@/lib/bez-zdroje";
 import { stavRozpoctu } from "@/lib/agent/rozpocet";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export default async function KontrolaPage() {
