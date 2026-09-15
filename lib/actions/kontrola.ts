@@ -92,14 +92,16 @@ export async function spustitSdruzeneKontrolu(): Promise<VysledekSdruzeneKontrol
   }
 
   try {
-    katalog = await doplnitKatalogDavku(4);
+    // Vyšší dávka než dřív – teď je Gemini fallback batchovaný (1 groundované
+    // volání na víc karet), takže víc karet za běh nestojí víc volání.
+    katalog = await doplnitKatalogDavku(6);
     chyby.push(...katalog.chyby);
   } catch (e) {
     chyby.push((e as Error).message || "Doplnění katalogu selhalo.");
   }
 
   try {
-    zdroje = await dohledatChybejiciZdroje(8);
+    zdroje = await dohledatChybejiciZdroje(10);
     chyby.push(...zdroje.chyby);
   } catch (e) {
     chyby.push((e as Error).message || "Dohledání zdrojů selhalo.");

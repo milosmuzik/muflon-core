@@ -10,17 +10,19 @@ import {
   urovenDuveryZeZdroje,
 } from "@/lib/constants";
 import { prehledBezZdroje } from "@/lib/bez-zdroje";
+import { stavRozpoctu } from "@/lib/agent/rozpocet";
 import Link from "next/link";
 
 export const maxDuration = 60;
 
 export default async function KontrolaPage() {
-  const [zbyva, pribehyHotovo, udalostiHotovo, featKOprave, bezZdroje] = await Promise.all([
+  const [zbyva, pribehyHotovo, udalostiHotovo, featKOprave, bezZdroje, rozpocet] = await Promise.all([
     pocetCekajicichNaWhitelist(),
     pocetSWhitelistem("Pribeh"),
     pocetSWhitelistem("Udalost"),
     pocetFeatKOprave(),
     prehledBezZdroje(8),
+    stavRozpoctu(),
   ]);
 
   const celkemBezZdroje = Object.values(bezZdroje.pocty).reduce((a, b) => a + b, 0);
@@ -34,6 +36,14 @@ export default async function KontrolaPage() {
           Automatický noční import je vypnutý. Výročí se berou z katalogu, ne z Gemini.
         </p>
       </div>
+
+      <IndexCard label="Gemini rozpočet (grounding)">
+        <p className="text-muted text-xs font-mono">
+          Dnes ({rozpocet.den}): {rozpocet.groundedDnes} / {rozpocet.strop} groundovaných volání
+          (bezpečný strop appky; Google limit {rozpocet.limitGoogle}/den) · zbývá {rozpocet.zbyva}
+          {rozpocet.jisticAktivni ? " · ⚠️ jistič aktivní (poslední 429/503)" : ""}
+        </p>
+      </IndexCard>
 
       <IndexCard label="Katalog → kalendář a příběhy">
         <p className="text-muted text-sm mb-3">

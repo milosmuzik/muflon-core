@@ -1,3 +1,5 @@
+import { pripravSeNaGrounded, zaznamenejGrounded, zavriJistic } from "@/lib/agent/rozpocet";
+
 export class GeminiQuotaError extends Error {
   constructor(message = "Gemini kvóta vyčerpaná. Dávka zastavena, nic se nemazalo.") {
     super(message);
@@ -8,18 +10,20 @@ export class GeminiQuotaError extends Error {
 const GEMINI_MODEL = "gemini-flash-lite-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
-let obvodDo = 0;
-
+/**
+ * Rychlý, synchronní předběžný test (jen "je nastavený API klíč?"). NENÍ
+ * autoritativní pro rozpočet/jistič – ten se (persistentně, v DB) vyhodnocuje
+ * až uvnitř zavolejGemini těsně před síťovým voláním, protože tudy prochází
+ * úplně každé volání Gemini a jde o jediné bezpečné místo pro vynucení.
+ * Volající to můžou použít jako levnou zkratku, aby se vyhnuli zbytečné
+ * přípravě promptu, když Gemini očividně není nakonfigurovaná – nic víc.
+ */
 export function geminiJeDostupne(): boolean {
-  return Date.now() >= obvodDo && Boolean(process.env.GEMINI_API_KEY);
+  return Boolean(process.env.GEMINI_API_KEY);
 }
 
 export function jeKvotaChyba(e: unknown): boolean {
   return e instanceof GeminiQuotaError || /429|RESOURCE_EXHAUSTED|kvóta/i.test((e as Error)?.message ?? "");
-}
-
-function uzavriObvod(ms: number) {
-  obvodDo = Math.max(obvodDo, Date.now() + ms);
 }
 
 type GeminiVolani = {
@@ -30,10 +34,17 @@ type GeminiVolani = {
 export async function zavolejGemini(prompt: string, volba: boolean | GeminiVolani = false): Promise<string> {
   const apiKlic = process.env.GEMINI_API_KEY;
   if (!apiKlic) throw new GeminiQuotaError("Chybí GEMINI_API_KEY.");
-  if (Date.now() < obvodDo) throw new GeminiQuotaError();
 
   const sHledanim = typeof volba === "boolean" ? volba : Boolean(volba.hledat);
   const maxVystup = typeof volba === "boolean" ? (sHledanim ? 800 : 1200) : (volba.maxVystup ?? (sHledanim ? 800 : 1200));
+
+  // Grounding (web search) je nejvzácnější zdroj appky (Google: 1500 RPD,
+  // appka má bezpečný strop ještě níž) – rozpočet a pacing se kontrolují a
+  // vynucují přes perzistentní DB tabulku, ne jen v paměti procesu.
+  if (sHledanim) {
+    const povoleni = await pripravSeNaGrounded();
+    if (!povoleni.ok) throw new GeminiQuotaError(povoleni.duvod);
+  }
 
   const odpoved = await fetch(`${GEMINI_URL}?key=${apiKlic}`, {
     method: "POST",
@@ -51,7 +62,7 @@ export async function zavolejGemini(prompt: string, volba: boolean | GeminiVolan
   if (odpoved.status === 429 || odpoved.status === 503) {
     const text = await odpoved.text();
     const prepay = /RESOURCE_EXHAUSTED|quota|billing|credit/i.test(text);
-    uzavriObvod(prepay ? 6 * 60 * 60 * 1000 : 15 * 60 * 1000);
+    await zavriJistic(prepay ? 6 * 60 * 60 * 1000 : 15 * 60 * 1000);
     throw new GeminiQuotaError(`Gemini API ${odpoved.status}: ${text.slice(0, 180)}`);
   }
 
@@ -59,6 +70,8 @@ export async function zavolejGemini(prompt: string, volba: boolean | GeminiVolan
     const text = await odpoved.text();
     throw new Error(`Gemini API ${odpoved.status}: ${text.slice(0, 300)}`);
   }
+
+  if (sHledanim) await zaznamenejGrounded();
 
   const data = await odpoved.json();
   const casti = data?.candidates?.[0]?.content?.parts ?? [];

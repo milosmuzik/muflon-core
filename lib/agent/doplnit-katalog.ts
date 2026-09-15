@@ -227,49 +227,261 @@ Vrať POUZE JSON: {"datumVydani":null,"vydavatel":null,"poznamka":null,"zdroje":
   return { typ: "Album", id, nazev: a.nazev, href: `/alba/${id}`, zmeny, zdroje };
 }
 
-export async function doplnitKatalogDavku(limit = 2): Promise<VysledekDoplneni> {
+// ---------------------------------------------------------------------------
+// Dávková varianta pro doplnitKatalogDavku: volné zdroje (Metal Archives,
+// MusicBrainz) se pořád zjišťují po jedné kartě (jsou zdarma), ale Gemini
+// fallback se pro všechny karty, které ho ještě potřebují, pošle v JEDNOM
+// groundovaném promptu místo 1 volání na kartu.
+// ---------------------------------------------------------------------------
+
+type PripravaHudebnika = {
+  id: string;
+  jmeno: string;
+  kapely: string[];
+  puvodni: { datumNarozeni: string | null; datumUmrti: string | null; pseudonymy: string | null };
+  nalez: Nalez;
+  potrebujeGemini: boolean;
+};
+
+async function pripravitVolneZdrojeHudebnika(id: string): Promise<PripravaHudebnika | null> {
+  const h = await prisma.hudebnik.findUnique({ where: { id }, include: { clenstvi: { include: { interpret: true } } } });
+  if (!h) return null;
+  const kapely = h.clenstvi.map((c) => c.interpret.nazev);
+  const nalez: Nalez = {};
+
+  const ma = await najdiHudebnikaNaMetalArchives(h.jmeno, kapely[0] ?? null);
+  if (ma) nalez.zdroje = slucZdroje(nalez.zdroje, [ma.zdroj]);
+  await pauza(400);
+
+  const mb = await faktaZMusicBrainzHudebnik(h.jmeno);
+  if (mb) {
+    if (mb.datumNarozeni) nalez.datumNarozeni = mb.datumNarozeni;
+    if (mb.datumUmrti) nalez.datumUmrti = mb.datumUmrti;
+    if (mb.zdroj) nalez.zdroje = slucZdroje(nalez.zdroje, [mb.zdroj]);
+  }
+  await pauza(1100);
+
+  const potrebujeGemini =
+    (!h.datumNarozeni && !nalez.datumNarozeni) ||
+    (!h.datumUmrti && !nalez.datumUmrti && Boolean(h.datumNarozeni || nalez.datumNarozeni) === false) ||
+    (!h.pseudonymy && !nalez.pseudonymy && !h.datumNarozeni && !nalez.datumNarozeni);
+
+  return {
+    id: h.id,
+    jmeno: h.jmeno,
+    kapely,
+    puvodni: { datumNarozeni: h.datumNarozeni, datumUmrti: h.datumUmrti, pseudonymy: h.pseudonymy },
+    nalez,
+    potrebujeGemini,
+  };
+}
+
+async function ulozitHudebnika(p: PripravaHudebnika): Promise<RadekDoplneni> {
+  const data: Record<string, string> = {};
+  const zmeny: string[] = [];
+  if (!p.puvodni.pseudonymy && p.nalez.pseudonymy) {
+    data.pseudonymy = String(p.nalez.pseudonymy);
+    zmeny.push(`pseudonymy: ${data.pseudonymy}`);
+  }
+  if (!p.puvodni.datumNarozeni && p.nalez.datumNarozeni) {
+    data.datumNarozeni = String(p.nalez.datumNarozeni);
+    zmeny.push(`narození: ${data.datumNarozeni}`);
+  }
+  if (!p.puvodni.datumUmrti && p.nalez.datumUmrti) {
+    data.datumUmrti = String(p.nalez.datumUmrti);
+    zmeny.push(`úmrtí: ${data.datumUmrti}`);
+  }
+  if (p.nalez.poznamka) {
+    data.poznamka = String(p.nalez.poznamka);
+    zmeny.push(`poznámka: ${data.poznamka}`);
+  }
+  if (Object.keys(data).length) await prisma.hudebnik.update({ where: { id: p.id }, data });
+  const zdroje = await ulozZdroje("Hudebnik", p.id, p.nalez.zdroje);
+  if (zmeny.length || zdroje.length) {
+    await zapisHistorii("Hudebnik", p.id, "upraveno", `Doplněno: ${[...zmeny, ...zdroje].join("; ")}`);
+  }
+  return { typ: "Hudebnik", id: p.id, nazev: p.jmeno, href: `/hudebnici/${p.id}`, zmeny, zdroje };
+}
+
+type PripravaAlba = {
+  id: string;
+  nazev: string;
+  kapely: string[];
+  puvodni: { datumVydani: string | null; vydavatel: string | null };
+  nalez: Nalez;
+  potrebujeGemini: boolean;
+};
+
+async function pripravitVolneZdrojeAlba(id: string): Promise<PripravaAlba | null> {
+  const a = await prisma.album.findUnique({ where: { id }, include: { interpreti: { include: { interpret: true } } } });
+  if (!a) return null;
+  const kapely = a.interpreti.map((i) => i.interpret.nazev);
+  const nalez: Nalez = {};
+
+  const ma = await najdiAlbaNaMetalArchives(a.nazev, kapely[0] ?? null);
+  if (ma) {
+    if (ma.datumVydani) nalez.datumVydani = ma.datumVydani;
+    nalez.zdroje = slucZdroje(nalez.zdroje, [ma.zdroj]);
+  }
+  await pauza(400);
+
+  const mb = await faktaZMusicBrainzAlbum(a.nazev, kapely[0] ?? null);
+  if (mb) {
+    if (!nalez.datumVydani && mb.datumVydani) nalez.datumVydani = mb.datumVydani;
+    if (mb.vydavatel) nalez.vydavatel = mb.vydavatel;
+    if (mb.zdroj) nalez.zdroje = slucZdroje(nalez.zdroje, [mb.zdroj]);
+  }
+  await pauza(1100);
+
+  const potrebujeGemini = (!a.datumVydani && !nalez.datumVydani) || (!a.vydavatel && !nalez.vydavatel);
+
+  return {
+    id: a.id,
+    nazev: a.nazev,
+    kapely,
+    puvodni: { datumVydani: a.datumVydani, vydavatel: a.vydavatel },
+    nalez,
+    potrebujeGemini,
+  };
+}
+
+async function ulozitAlbum(p: PripravaAlba): Promise<RadekDoplneni> {
+  const data: Record<string, string> = {};
+  const zmeny: string[] = [];
+  if (!p.puvodni.datumVydani && p.nalez.datumVydani) {
+    data.datumVydani = String(p.nalez.datumVydani);
+    zmeny.push(`vydání: ${data.datumVydani}`);
+  }
+  if (!p.puvodni.vydavatel && p.nalez.vydavatel) {
+    data.vydavatel = String(p.nalez.vydavatel);
+    zmeny.push(`vydavatel: ${data.vydavatel}`);
+  }
+  if (p.nalez.poznamka) {
+    data.poznamka = String(p.nalez.poznamka);
+    zmeny.push(`poznámka: ${data.poznamka}`);
+  }
+  if (Object.keys(data).length) await prisma.album.update({ where: { id: p.id }, data });
+  const zdroje = await ulozZdroje("Album", p.id, p.nalez.zdroje);
+  if (zmeny.length || zdroje.length) {
+    await zapisHistorii("Album", p.id, "upraveno", `Doplněno: ${[...zmeny, ...zdroje].join("; ")}`);
+  }
+  return { typ: "Album", id: p.id, nazev: p.nazev, href: `/alba/${p.id}`, zmeny, zdroje };
+}
+
+const MAX_KARET_V_DAVCE = 8;
+
+async function doplnitGeminiDavkou<T extends { id: string; nalez: Nalez }>(
+  polozky: T[],
+  sestavRadek: (p: T) => string,
+  poleKlicu: string
+): Promise<void> {
+  for (let i = 0; i < polozky.length; i += MAX_KARET_V_DAVCE) {
+    const davka = polozky.slice(i, i + MAX_KARET_V_DAVCE);
+    const prompt = `Jsi redakční asistent hudební databáze Rádio Muflon. Pro KAŽDOU z těchto položek (podle "id") najdi pomocí web search chybějící fakta a ověřitelné URL zdroje.
+
+${davka.map(sestavRadek).join("\n")}
+
+Vrať POUZE JSON pole, jednu položku pro KAŽDÉ zadané "id":
+[{"id": "...", ${poleKlicu}, "zdroje": [{"nazev": "", "url": "https://", "kategorie": "oficialni_web|socialni_site|databaze|media|orientacni"}]}]
+Co nenajdeš, nech jako null / prázdné pole zdrojů – nevymýšlej si nic.`;
+
+    const text = await zavolejGemini(prompt, { hledat: true, maxVystup: 350 + davka.length * 220 });
+    const pole = vytahniJson(text);
+    if (!Array.isArray(pole)) continue;
+
+    const podleId = new Map(davka.map((p) => [p.id, p]));
+    for (const polozka of pole as (Nalez & { id?: string })[]) {
+      const cil = polozka?.id ? podleId.get(polozka.id) : undefined;
+      if (!cil) continue;
+      if (!cil.nalez.datumNarozeni && polozka.datumNarozeni) cil.nalez.datumNarozeni = polozka.datumNarozeni;
+      if (!cil.nalez.datumUmrti && polozka.datumUmrti) cil.nalez.datumUmrti = polozka.datumUmrti;
+      if (!cil.nalez.datumVydani && polozka.datumVydani) cil.nalez.datumVydani = polozka.datumVydani;
+      if (!cil.nalez.vydavatel && polozka.vydavatel) cil.nalez.vydavatel = polozka.vydavatel;
+      if (!cil.nalez.pseudonymy && polozka.pseudonymy) cil.nalez.pseudonymy = polozka.pseudonymy;
+      if (polozka.poznamka) cil.nalez.poznamka = polozka.poznamka;
+      cil.nalez.zdroje = slucZdroje(cil.nalez.zdroje, polozka.zdroje);
+    }
+  }
+}
+
+export async function doplnitKatalogDavku(limit = 8): Promise<VysledekDoplneni> {
   const zdroje = await prisma.zdroj.findMany({
     where: { cilovyTyp: { in: ["Hudebnik", "Album"] } },
     select: { cilovyTyp: true, cilovyId: true },
   });
   const ma = new Set(zdroje.map((z) => `${z.cilovyTyp}:${z.cilovyId}`));
 
-  const [hudebnici, alba] = await Promise.all([
+  const [hudebniciVse, albaVse] = await Promise.all([
     prisma.hudebnik.findMany({ select: { id: true, jmeno: true }, orderBy: { updatedAt: "asc" } }),
     prisma.album.findMany({ select: { id: true, nazev: true }, orderBy: { updatedAt: "asc" } }),
   ]);
 
   const vysledek: VysledekDoplneni = { zpracovano: 0, doplneno: 0, zdroje: 0, polozky: [], chyby: [] };
 
-  for (const h of hudebnici.filter((x) => !ma.has(`Hudebnik:${x.id}`)).slice(0, limit)) {
+  const hudebniciId = hudebniciVse.filter((x) => !ma.has(`Hudebnik:${x.id}`)).slice(0, limit);
+  const albaId = albaVse.filter((x) => !ma.has(`Album:${x.id}`)).slice(0, limit);
+
+  const pripravyHudebniku: PripravaHudebnika[] = [];
+  for (const h of hudebniciId) {
     vysledek.zpracovano++;
     try {
-      const r = await doplnitHudebnika(h.id);
-      vysledek.polozky.push(r);
-      if (r.zmeny.length || r.zdroje.length) vysledek.doplneno++;
-      vysledek.zdroje += r.zdroje.length;
+      const p = await pripravitVolneZdrojeHudebnika(h.id);
+      if (p) pripravyHudebniku.push(p);
     } catch (e) {
-      if (jeKvotaChyba(e)) {
-        vysledek.chyby.push("Gemini kvóta. Katalog dál bere Metal Archives a MusicBrainz, textové doplnění přeskočeno.");
-        break;
-      }
       vysledek.chyby.push(`${h.jmeno}: ${(e as Error).message}`);
     }
   }
-  for (const a of alba.filter((x) => !ma.has(`Album:${x.id}`)).slice(0, limit)) {
+
+  const pripravyAlb: PripravaAlba[] = [];
+  for (const a of albaId) {
     vysledek.zpracovano++;
     try {
-      const r = await doplnitAlbum(a.id);
+      const p = await pripravitVolneZdrojeAlba(a.id);
+      if (p) pripravyAlb.push(p);
+    } catch (e) {
+      vysledek.chyby.push(`${a.nazev}: ${(e as Error).message}`);
+    }
+  }
+
+  try {
+    await doplnitGeminiDavkou(
+      pripravyHudebniku.filter((p) => p.potrebujeGemini),
+      (p) => `- id="${p.id}": Hudebník "${p.jmeno}". Kapely: ${p.kapely.join(", ") || "neznámé"}. Chybí: narození/úmrtí/pseudonymy.`,
+      `"pseudonymy": null, "datumNarozeni": null, "datumUmrti": null, "poznamka": null`
+    );
+    await doplnitGeminiDavkou(
+      pripravyAlb.filter((p) => p.potrebujeGemini),
+      (p) => `- id="${p.id}": Album "${p.nazev}". Interpret: ${p.kapely.join(", ") || "neznámý"}. Chybí: datum vydání/vydavatel.`,
+      `"datumVydani": null, "vydavatel": null, "poznamka": null`
+    );
+  } catch (e) {
+    if (jeKvotaChyba(e)) {
+      vysledek.chyby.push("Gemini kvóta. Katalog dál bere Metal Archives a MusicBrainz, textové doplnění přeskočeno pro zbytek dávky.");
+    } else {
+      vysledek.chyby.push((e as Error).message);
+    }
+  }
+
+  for (const p of pripravyHudebniku) {
+    try {
+      const r = await ulozitHudebnika(p);
       vysledek.polozky.push(r);
       if (r.zmeny.length || r.zdroje.length) vysledek.doplneno++;
       vysledek.zdroje += r.zdroje.length;
     } catch (e) {
-      if (jeKvotaChyba(e)) {
-        vysledek.chyby.push("Gemini kvóta. Zbytek textového doplnění přeskočen.");
-        break;
-      }
-      vysledek.chyby.push(`${a.nazev}: ${(e as Error).message}`);
+      vysledek.chyby.push(`${p.jmeno}: ${(e as Error).message}`);
     }
   }
+  for (const p of pripravyAlb) {
+    try {
+      const r = await ulozitAlbum(p);
+      vysledek.polozky.push(r);
+      if (r.zmeny.length || r.zdroje.length) vysledek.doplneno++;
+      vysledek.zdroje += r.zdroje.length;
+    } catch (e) {
+      vysledek.chyby.push(`${p.nazev}: ${(e as Error).message}`);
+    }
+  }
+
   return vysledek;
 }

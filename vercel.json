@@ -1,3 +1,5 @@
 {
-  "crons": []
+  "crons": [
+    { "path": "/api/cron/sdruzena-kontrola", "schedule": "0 6 * * *" }
+  ]
 }

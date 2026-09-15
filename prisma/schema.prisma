@@ -12,6 +12,22 @@ datasource db {
 }
 
 // ---------------------------------------------------------------------------
+// Rozpočet a jistič pro volání Gemini s web searchem (grounding).
+// Grounding s Google Search má samostatnou denní kvótu (Google: 1500 RPD),
+// mnohem přísnější než běžný RPM/TPM modelu – proto se sleduje odděleně
+// a přetrvává v DB (ne jen v paměti procesu, která se na Vercelu resetuje
+// při každém studeném startu).
+// ---------------------------------------------------------------------------
+model GeminiRozpocet {
+  id                  String    @id @default("singleton")
+  den                 String // YYYY-MM-DD v Europe/Prague – počítadlo se resetuje o půlnoci
+  groundedDnes        Int       @default(0)
+  obvodDoUtc          DateTime? // jistič po 429/503: dokud now < obvodDoUtc, negrounduje se
+  posledniGroundedUtc DateTime? // pro vynucení minimální mezery mezi groundovanými voláními
+  updatedAt           DateTime  @updatedAt
+}
+
+// ---------------------------------------------------------------------------
 // Kapitola 6 – Interpret (centrální uzel znalostní sítě)
 // ---------------------------------------------------------------------------
 model Interpret {
