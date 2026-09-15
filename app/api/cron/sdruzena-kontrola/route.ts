@@ -3,10 +3,10 @@ import { overCron } from "@/lib/over-cron";
 import { spustitSdruzeneKontrolu } from "@/lib/actions/kontrola";
 import { vygenerovatNavrhyKalendare } from "@/lib/agent/navrhy-kalendar";
 
-// POZOR: 300 s vyžaduje Vercel Pro (nebo Fluid Compute). Na Hobby plánu
-// snižte na max. 60 a odpovídajícím způsobem zmenšete dávky v kontrola.ts,
-// jinak funkce doběhne na timeout dřív, než se stihne dokončit.
-export const maxDuration = 300;
+// Hobby plán: max 60 s (300 by vůbec neproběhlo). Dávky v kontrola.ts jsou
+// odpovídajícím způsobem zmenšené (viz komentáře u dohledatChybejiciZdroje
+// a doplnitKatalogDavku), ať tohle bezpečně doběhne v 60 s.
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   const zamitnout = overCron(request);
