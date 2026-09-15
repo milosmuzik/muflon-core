@@ -1,3 +1,5 @@
+import { EXTERNI_ZDROJ_TIMEOUT_MS } from "@/lib/constants";
+
 export type NalezenyZdroj = { nazev: string; url: string; kategorie: string };
 
 const USER_AGENT = "MuflonCore/0.1 (https://muflon-core.vercel.app; redakce Rádia Muflon)";
@@ -30,6 +32,7 @@ async function maAjax(cesta: string): Promise<string[][]> {
   const url = `https://www.metal-archives.com${cesta}`;
   const odpoved = await fetch(url, {
     headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+    signal: AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
   });
   if (!odpoved.ok) return [];
   const data = await odpoved.json();
@@ -123,6 +126,7 @@ export async function faktaZMusicBrainzHudebnik(jmeno: string): Promise<{
   const dotaz = encodeURIComponent(`artist:"${jmeno.replace(/"/g, "")}" AND type:person`);
   const odpoved = await fetch(`https://musicbrainz.org/ws/2/artist/?query=${dotaz}&fmt=json&limit=5`, {
     headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+    signal: AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
   });
   if (!odpoved.ok) return null;
   const data = await odpoved.json();
@@ -132,6 +136,7 @@ export async function faktaZMusicBrainzHudebnik(jmeno: string): Promise<{
   if (!hit) return null;
   const detail = await fetch(`https://musicbrainz.org/ws/2/artist/${hit.id}?fmt=json`, {
     headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+    signal: AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
   });
   if (!detail.ok) {
     return {
@@ -155,7 +160,10 @@ export async function faktaZMusicBrainzAlbum(
   if (interpret) casti.push(`artist:"${interpret.replace(/"/g, "")}"`);
   const odpoved = await fetch(
     `https://musicbrainz.org/ws/2/release/?query=${encodeURIComponent(casti.join(" AND "))}&fmt=json&limit=5`,
-    { headers: { "User-Agent": USER_AGENT, Accept: "application/json" } }
+    {
+      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+      signal: AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
+    }
   );
   if (!odpoved.ok) return null;
   const data = await odpoved.json();
