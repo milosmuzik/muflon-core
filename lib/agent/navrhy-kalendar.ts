@@ -10,6 +10,7 @@ import {
 import { rozbalRedirect } from "./redirect";
 import { jsouDuplicitni } from "./duplicity";
 import { GeminiQuotaError, geminiJeDostupne, jeKvotaChyba, vytahniJson, zavolejGemini } from "./gemini";
+import { type RozpocetCasu, VYCHOZI_ROZPOCET_MS, vytvorRozpocet } from "@/lib/agent/rozpocet-casu";
 
 const NAZVY_MESICU_2P = [
   "ledna", "února", "března", "dubna", "května", "června",
@@ -54,7 +55,10 @@ export type VysledekAgenta = {
   chyby: string[];
 };
 
-export async function vygenerovatNavrhyKalendare(pocetDni = 1): Promise<VysledekAgenta> {
+export async function vygenerovatNavrhyKalendare(
+  pocetDni = 1,
+  rozpocet: RozpocetCasu = vytvorRozpocet(VYCHOZI_ROZPOCET_MS)
+): Promise<VysledekAgenta> {
   if (!geminiJeDostupne()) throw new GeminiQuotaError("Chybí GEMINI_API_KEY nebo je kvóta vyčerpaná.");
 
   const dni = Math.max(1, Math.min(pocetDni, 3));
@@ -64,6 +68,10 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 1): Promise<Vysledek
   const chyby: string[] = [];
 
   for (let i = 0; i < dni; i++) {
+    if (rozpocet.vyprsel()) {
+      chyby.push("Časový rozpočet vyčerpán, zbytek dní kalendáře přeskočen (doběhne příště).");
+      break;
+    }
     const datum = new Date();
     datum.setDate(datum.getDate() + i);
     const den = datum.getDate();
@@ -75,9 +83,13 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 1): Promise<Vysledek
         preskoceno += existujiciTentoDen.length;
         continue;
       }
-      const surovaOdpoved = await zavolejGemini(sestavPrompt(den, mesic), { hledat: true, maxVystup: 700 });
+      const surovaOdpoved = await zavolejGemini(sestavPrompt(den, mesic), { hledat: true, maxVystup: 700 }, rozpocet);
       const polozky = vytahniPole(surovaOdpoved);
       for (const polozka of polozky) {
+        if (rozpocet.vyprsel()) {
+          chyby.push(`${mmdd}: časový rozpočet vyčerpán uprostřed dne, zbytek položek přeskočen.`);
+          break;
+        }
         if (!polozka.nazev || !polozka.zdroje?.length) continue;
         if (existujiciTentoDen.some((u) => jsouDuplicitni(u.nazev, polozka.nazev))) {
           preskoceno++;
@@ -87,8 +99,9 @@ export async function vygenerovatNavrhyKalendare(pocetDni = 1): Promise<Vysledek
         const vyhodnoceneZdroje: { nazev: string; url: string; kategorie: string; uroverDuvery: string }[] = [];
         let nejvyssiUroven = 0;
         for (const zdroj of polozka.zdroje.slice(0, 5)) {
+          if (rozpocet.vyprsel()) break;
           if (!zdroj.url) continue;
-          const skutecnaUrl = await rozbalRedirect(zdroj.url);
+          const skutecnaUrl = await rozbalRedirect(zdroj.url, rozpocet);
           const kategorie = PLATNE_KATEGORIE.has(zdroj.kategorie) ? zdroj.kategorie : "orientacni";
           const uroverDuvery = urovenDuveryZeZdroje(kategorie, skutecnaUrl);
           nejvyssiUroven = Math.max(nejvyssiUroven, urovenDuveryPriorita(uroverDuvery));

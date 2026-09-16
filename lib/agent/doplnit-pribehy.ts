@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
 import { RENOMOVANE_ZDROJE_DOMENY } from "@/lib/constants";
 import { GeminiQuotaError, geminiJeDostupne, jeKvotaChyba, vytahniJson, zavolejGemini } from "@/lib/agent/gemini";
+import { type RozpocetCasu, VYCHOZI_ROZPOCET_MS, vytvorRozpocet } from "@/lib/agent/rozpocet-casu";
 
 export type VysledekPribehu = {
   zeSablony: number;
@@ -62,21 +63,28 @@ Vrať POUZE JSON pole (žádný text okolo, žádné markdown zpětné uvozovky)
  * Dávkově napíše chybějící příběhy přes groundovaného Gemini – stejný vzor
  * jako dohledatZdrojeVDavce (dohledat-zdroj.ts): jeden groundovaný prompt na
  * víc položek místo jednoho volání na kapelu. Vrací mapu id -> napsaný
- * příběh (nebo null, pokud Gemini nic ověřeného nenašel).
+ * příběh (nebo null, pokud Gemini nic ověřeného nenašel). Položky, ke
+ * kterým se kvůli časovému rozpočtu vůbec nedošlo, v mapě chybí úplně (na
+ * rozdíl od `null`) – volající to nesmí považovat za "zkusili jsme a nic se
+ * nenašlo", protože o žádnou existující data se tu nejedná (jen se
+ * nezaloží nový návrh příběhu, nic se nemaže).
  */
 async function napisPribehyDavkou(
-  polozky: KandidatBezHistorie[]
+  polozky: KandidatBezHistorie[],
+  rozpocet: RozpocetCasu
 ): Promise<Map<string, NapsanyPribeh | null>> {
   const vysledek = new Map<string, NapsanyPribeh | null>();
   if (polozky.length === 0) return vysledek;
   if (!geminiJeDostupne()) throw new GeminiQuotaError();
 
   for (let i = 0; i < polozky.length; i += MAX_POLOZEK_V_DAVCE) {
+    if (rozpocet.vyprsel()) break;
     const davka = polozky.slice(i, i + MAX_POLOZEK_V_DAVCE);
-    const surovyText = await zavolejGemini(sestavPribehPrompt(davka), {
-      hledat: true,
-      maxVystup: 500 + davka.length * 260,
-    });
+    const surovyText = await zavolejGemini(
+      sestavPribehPrompt(davka),
+      { hledat: true, maxVystup: 500 + davka.length * 260 },
+      rozpocet
+    );
     const pole = vytahniJson(surovyText);
     if (!Array.isArray(pole)) continue;
 
@@ -103,11 +111,18 @@ async function napisPribehyDavkou(
   return vysledek;
 }
 
-export async function doplnitChybejiciPribehy(limit = 10): Promise<VysledekPribehu> {
+export async function doplnitChybejiciPribehy(
+  limit = 10,
+  rozpocet: RozpocetCasu = vytvorRozpocet(VYCHOZI_ROZPOCET_MS)
+): Promise<VysledekPribehu> {
   const chyby: string[] = [];
   let zeSablony = 0;
   let zGemini = 0;
   let preskoceno = 0;
+
+  if (rozpocet.vyprsel()) {
+    return { zeSablony, zGemini, preskoceno, zbyva: 0, chyby };
+  }
 
   const vPlaylistu = await prisma.skladbaInterpret.findMany({
     where: { skladba: { vPlaylistu: true } },
@@ -132,6 +147,10 @@ export async function doplnitChybejiciPribehy(limit = 10): Promise<VysledekPribe
   const naGemini: typeof davka = [];
 
   for (const i of davka) {
+    if (rozpocet.vyprsel()) {
+      chyby.push("Časový rozpočet vyčerpán, zbytek dávky příběhů přeskočen (doběhne příště).");
+      break;
+    }
     const historie = i.historie?.trim() ?? "";
     if (historie.length >= 80) {
       try {
@@ -145,10 +164,11 @@ export async function doplnitChybejiciPribehy(limit = 10): Promise<VysledekPribe
     naGemini.push(i);
   }
 
-  if (naGemini.length > 0) {
+  if (naGemini.length > 0 && !rozpocet.vyprsel()) {
     try {
-      const napsane = await napisPribehyDavkou(naGemini.map((i) => ({ id: i.id, nazev: i.nazev })));
+      const napsane = await napisPribehyDavkou(naGemini.map((i) => ({ id: i.id, nazev: i.nazev })), rozpocet);
       for (const i of naGemini) {
+        if (!napsane.has(i.id)) continue; // časový rozpočet - nezpracováno, zkusí se příště
         const napsany = napsane.get(i.id);
         if (!napsany) {
           preskoceno++;

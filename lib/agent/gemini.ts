@@ -1,5 +1,6 @@
 import { pripravSeNaGrounded, zaznamenejGrounded, zavriJistic } from "@/lib/agent/rozpocet";
 import { GEMINI_TIMEOUT_MS } from "@/lib/constants";
+import { type RozpocetCasu, chybaVyprseni, jeChybaVyprseni, signalNaVolani } from "@/lib/agent/rozpocet-casu";
 
 export class GeminiQuotaError extends Error {
   constructor(message = "Gemini kvóta vyčerpaná. Dávka zastavena, nic se nemazalo.") {
@@ -32,9 +33,22 @@ type GeminiVolani = {
   maxVystup?: number;
 };
 
-export async function zavolejGemini(prompt: string, volba: boolean | GeminiVolani = false): Promise<string> {
+/**
+ * `rozpocet`, pokud je předaný, dělá dvě věci navíc oproti dřívějšku:
+ * 1) když už z celkového rozpočtu (cron) nic nezbývá, volání se vůbec
+ *    nezahájí (ani se nečeká na pacing mezeru přes pripravSeNaGrounded) -
+ *    vrátí se rovnou chyba rozpoznatelná přes jeChybaVyprseni/e.name.
+ * 2) samotný fetch dostane signál, který se zkrátí na to, co z rozpočtu
+ *    ještě reálně zbývá, místo pevných GEMINI_TIMEOUT_MS.
+ */
+export async function zavolejGemini(
+  prompt: string,
+  volba: boolean | GeminiVolani = false,
+  rozpocet?: RozpocetCasu
+): Promise<string> {
   const apiKlic = process.env.GEMINI_API_KEY;
   if (!apiKlic) throw new GeminiQuotaError("Chybí GEMINI_API_KEY.");
+  if (rozpocet?.vyprsel()) throw chybaVyprseni("Časový rozpočet vyčerpán, Gemini se nevolá.");
 
   const sHledanim = typeof volba === "boolean" ? volba : Boolean(volba.hledat);
   const maxVystup = typeof volba === "boolean" ? (sHledanim ? 800 : 1200) : (volba.maxVystup ?? (sHledanim ? 800 : 1200));
@@ -46,6 +60,8 @@ export async function zavolejGemini(prompt: string, volba: boolean | GeminiVolan
     const povoleni = await pripravSeNaGrounded();
     if (!povoleni.ok) throw new GeminiQuotaError(povoleni.duvod);
   }
+
+  if (rozpocet?.vyprsel()) throw chybaVyprseni("Časový rozpočet vypršel během čekání na pacing Gemini.");
 
   let odpoved: Response;
   try {
@@ -60,9 +76,10 @@ export async function zavolejGemini(prompt: string, volba: boolean | GeminiVolan
         },
         ...(sHledanim ? { tools: [{ google_search: {} }] } : {}),
       }),
-      signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
+      signal: rozpocet ? signalNaVolani(rozpocet, GEMINI_TIMEOUT_MS) : AbortSignal.timeout(GEMINI_TIMEOUT_MS),
     });
   } catch (e) {
+    if (jeChybaVyprseni(e)) throw e;
     if ((e as Error)?.name === "TimeoutError" || (e as Error)?.name === "AbortError") {
       throw new Error(`Gemini API neodpověděla do ${GEMINI_TIMEOUT_MS / 1000}s (timeout).`);
     }

@@ -1,4 +1,5 @@
 import { EXTERNI_ZDROJ_TIMEOUT_MS } from "@/lib/constants";
+import { type RozpocetCasu, signalNaVolani } from "@/lib/agent/rozpocet-casu";
 
 export type NalezenyZdroj = { nazev: string; url: string; kategorie: string };
 
@@ -28,11 +29,18 @@ function vytahniOdkazy(html: string): { text: string; url: string }[] {
   return vysledek;
 }
 
-async function maAjax(cesta: string): Promise<string[][]> {
+/**
+ * `rozpocet` je volitelný, ale kdykoliv je k dispozici (cron), MUSÍ se
+ * předat – jinak funkce dál poslušně čeká plných EXTERNI_ZDROJ_TIMEOUT_MS
+ * i v okamžiku, kdy už z celkového rozpočtu nic nezbývá (viz
+ * lib/agent/rozpocet-casu.ts pro vysvětlení, proč na tom záleží).
+ */
+async function maAjax(cesta: string, rozpocet?: RozpocetCasu): Promise<string[][]> {
+  if (rozpocet?.vyprsel()) return [];
   const url = `https://www.metal-archives.com${cesta}`;
   const odpoved = await fetch(url, {
     headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-    signal: AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
+    signal: rozpocet ? signalNaVolani(rozpocet, EXTERNI_ZDROJ_TIMEOUT_MS) : AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
   });
   if (!odpoved.ok) return [];
   const data = await odpoved.json();
@@ -56,10 +64,15 @@ function jedinecnyPresny(
   return [...unikat.values()][0];
 }
 
-export async function najdiKapeluNaMetalArchives(nazev: string): Promise<NalezenyZdroj | null> {
+export async function najdiKapeluNaMetalArchives(
+  nazev: string,
+  rozpocet?: RozpocetCasu
+): Promise<NalezenyZdroj | null> {
+  if (rozpocet?.vyprsel()) return null;
   const q = encodeURIComponent(nazev.slice(0, 80));
   const radky = await maAjax(
-    `/search/ajax-band-search/?field=name&query=${q}&sEcho=1&iDisplayStart=0&iDisplayLength=10`
+    `/search/ajax-band-search/?field=name&query=${q}&sEcho=1&iDisplayStart=0&iDisplayLength=10`,
+    rozpocet
   );
   const hit = jedinecnyPresny(radky, 0, nazev);
   if (!hit) return null;
@@ -68,11 +81,14 @@ export async function najdiKapeluNaMetalArchives(nazev: string): Promise<Nalezen
 
 export async function najdiAlbaNaMetalArchives(
   nazevAlba: string,
-  interpret?: string | null
+  interpret?: string | null,
+  rozpocet?: RozpocetCasu
 ): Promise<{ zdroj: NalezenyZdroj; datumVydani?: string } | null> {
+  if (rozpocet?.vyprsel()) return null;
   const q = encodeURIComponent(nazevAlba.slice(0, 80));
   const radky = await maAjax(
-    `/search/ajax-album-search/?field=title&query=${q}&sEcho=1&iDisplayStart=0&iDisplayLength=10`
+    `/search/ajax-album-search/?field=title&query=${q}&sEcho=1&iDisplayStart=0&iDisplayLength=10`,
+    rozpocet
   );
   const kandidati = radky.filter((r) => {
     const album = vytahniOdkazy(r[1] ?? "")[0];
@@ -94,11 +110,14 @@ export async function najdiAlbaNaMetalArchives(
 
 export async function najdiHudebnikaNaMetalArchives(
   jmeno: string,
-  kapela?: string | null
+  kapela?: string | null,
+  rozpocet?: RozpocetCasu
 ): Promise<{ zdroj: NalezenyZdroj; datumNarozeni?: string } | null> {
+  if (rozpocet?.vyprsel()) return null;
   const q = encodeURIComponent(jmeno.slice(0, 80));
   const radky = await maAjax(
-    `/search/ajax-artist-search/?field=alias&query=${q}&sEcho=1&iDisplayStart=0&iDisplayLength=10`
+    `/search/ajax-artist-search/?field=alias&query=${q}&sEcho=1&iDisplayStart=0&iDisplayLength=10`,
+    rozpocet
   );
   const kandidati = radky.filter((r) => {
     const umelec = vytahniOdkazy(r[0] ?? "")[0];
@@ -118,15 +137,19 @@ export async function najdiHudebnikaNaMetalArchives(
   };
 }
 
-export async function faktaZMusicBrainzHudebnik(jmeno: string): Promise<{
+export async function faktaZMusicBrainzHudebnik(
+  jmeno: string,
+  rozpocet?: RozpocetCasu
+): Promise<{
   datumNarozeni?: string;
   datumUmrti?: string;
   zdroj?: NalezenyZdroj;
 } | null> {
+  if (rozpocet?.vyprsel()) return null;
   const dotaz = encodeURIComponent(`artist:"${jmeno.replace(/"/g, "")}" AND type:person`);
   const odpoved = await fetch(`https://musicbrainz.org/ws/2/artist/?query=${dotaz}&fmt=json&limit=5`, {
     headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-    signal: AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
+    signal: rozpocet ? signalNaVolani(rozpocet, EXTERNI_ZDROJ_TIMEOUT_MS) : AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
   });
   if (!odpoved.ok) return null;
   const data = await odpoved.json();
@@ -134,9 +157,15 @@ export async function faktaZMusicBrainzHudebnik(jmeno: string): Promise<{
     (a: { name: string; score?: number }) => shodaNazvu(a.name, jmeno) && (a.score ?? 0) >= 90
   );
   if (!hit) return null;
+
+  if (rozpocet?.vyprsel()) {
+    return {
+      zdroj: { nazev: "MusicBrainz", url: `https://musicbrainz.org/artist/${hit.id}`, kategorie: "databaze" },
+    };
+  }
   const detail = await fetch(`https://musicbrainz.org/ws/2/artist/${hit.id}?fmt=json`, {
     headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-    signal: AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
+    signal: rozpocet ? signalNaVolani(rozpocet, EXTERNI_ZDROJ_TIMEOUT_MS) : AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
   });
   if (!detail.ok) {
     return {
@@ -154,15 +183,17 @@ export async function faktaZMusicBrainzHudebnik(jmeno: string): Promise<{
 
 export async function faktaZMusicBrainzAlbum(
   nazev: string,
-  interpret?: string | null
+  interpret?: string | null,
+  rozpocet?: RozpocetCasu
 ): Promise<{ datumVydani?: string; vydavatel?: string; zdroj?: NalezenyZdroj } | null> {
+  if (rozpocet?.vyprsel()) return null;
   const casti = [`release:"${nazev.replace(/"/g, "")}"`];
   if (interpret) casti.push(`artist:"${interpret.replace(/"/g, "")}"`);
   const odpoved = await fetch(
     `https://musicbrainz.org/ws/2/release/?query=${encodeURIComponent(casti.join(" AND "))}&fmt=json&limit=5`,
     {
       headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-      signal: AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
+      signal: rozpocet ? signalNaVolani(rozpocet, EXTERNI_ZDROJ_TIMEOUT_MS) : AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
     }
   );
   if (!odpoved.ok) return null;

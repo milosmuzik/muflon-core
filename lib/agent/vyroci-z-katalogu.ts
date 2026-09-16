@@ -3,6 +3,7 @@ import { zapisHistorii } from "@/lib/history";
 import { jsouDuplicitni } from "@/lib/agent/duplicity";
 import { urovenDuveryZeZdroje } from "@/lib/constants";
 import { faktaZMusicBrainzAlbum, faktaZMusicBrainzHudebnik } from "@/lib/agent/databaze";
+import { type RozpocetCasu, VYCHOZI_ROZPOCET_MS, vytvorRozpocet } from "@/lib/agent/rozpocet-casu";
 
 export function parsujDatum(s: string | null | undefined): { mmdd?: string; rok?: number } {
   if (!s) return {};
@@ -96,12 +97,32 @@ export type VysledekVyroci = {
   chyby: string[];
 };
 
-export async function doplnitVyrociZKatalogu(limitMb = 6): Promise<VysledekVyroci> {
+/**
+ * `rozpocet` se kontroluje na začátku KAŽDÉ iterace všech čtyř dávek níže
+ * (dvě čistě databázové – albaSDatem/lide – i dvě se síťovými voláními na
+ * MusicBrainz – albaBezDne/lideBezDne). Databázové smyčky projdou celý
+ * katalog (roste s ním – u velkého katalogu proto mají i ONY smysl chránit
+ * rozpočtem, i když samy o sobě nedělají síťová volání), takže bez kontroly
+ * by časem mohly začít brát nezanedbatelnou část rozpočtu i tady.
+ *
+ * Přeskočení kvůli vypršelému rozpočtu se počítá do `preskoceno` stejně
+ * jako přeskočení kvůli duplicitě – jde jen o to, že se výročí založí až v
+ * některém z příštích běhů, nikdy ne o ztrátu dat (funkce jen VYTVÁŘÍ nové
+ * záznamy, nikdy nic nemaže na základě toho, že "nebyl čas zkontrolovat").
+ */
+export async function doplnitVyrociZKatalogu(
+  limitMb = 6,
+  rozpocet: RozpocetCasu = vytvorRozpocet(VYCHOZI_ROZPOCET_MS)
+): Promise<VysledekVyroci> {
   const chyby: string[] = [];
   let alba = 0;
   let hudebnici = 0;
   let doplnenaData = 0;
   let preskoceno = 0;
+
+  if (rozpocet.vyprsel()) {
+    return { alba, hudebnici, doplnenaData, preskoceno, chyby };
+  }
 
   const albaSDatem = await prisma.album.findMany({
     where: { datumVydani: { not: null } },
@@ -109,6 +130,11 @@ export async function doplnitVyrociZKatalogu(limitMb = 6): Promise<VysledekVyroc
   });
 
   for (const album of albaSDatem) {
+    if (rozpocet.vyprsel()) {
+      preskoceno += albaSDatem.length - albaSDatem.indexOf(album);
+      chyby.push("Časový rozpočet vyčerpán (výročí z alb s datem) – zbytek doběhne příště.");
+      break;
+    }
     const d = parsujDatum(album.datumVydani);
     if (!d.mmdd) {
       preskoceno++;
@@ -136,12 +162,19 @@ export async function doplnitVyrociZKatalogu(limitMb = 6): Promise<VysledekVyroc
     }
   }
 
-  const lide = await prisma.hudebnik.findMany({
-    where: { OR: [{ datumNarozeni: { not: null } }, { datumUmrti: { not: null } }] },
-    include: { clenstvi: { include: { interpret: true }, take: 1 } },
-  });
+  const lide = rozpocet.vyprsel()
+    ? []
+    : await prisma.hudebnik.findMany({
+        where: { OR: [{ datumNarozeni: { not: null } }, { datumUmrti: { not: null } }] },
+        include: { clenstvi: { include: { interpret: true }, take: 1 } },
+      });
 
   for (const h of lide) {
+    if (rozpocet.vyprsel()) {
+      preskoceno += lide.length - lide.indexOf(h);
+      chyby.push("Časový rozpočet vyčerpán (narozeniny/úmrtí z katalogu) – zbytek doběhne příště.");
+      break;
+    }
     const interpret = h.clenstvi[0]?.interpret;
     const narozeni = parsujDatum(h.datumNarozeni);
     if (narozeni.mmdd) {
@@ -183,16 +216,22 @@ export async function doplnitVyrociZKatalogu(limitMb = 6): Promise<VysledekVyroc
     }
   }
 
-  const albaBezDne = await prisma.album.findMany({
-    where: { OR: [{ datumVydani: null }, { datumVydani: { equals: "" } }] },
-    include: { interpreti: { include: { interpret: true } } },
-    take: limitMb,
-  });
+  const albaBezDne = rozpocet.vyprsel()
+    ? []
+    : await prisma.album.findMany({
+        where: { OR: [{ datumVydani: null }, { datumVydani: { equals: "" } }] },
+        include: { interpreti: { include: { interpret: true } } },
+        take: limitMb,
+      });
 
   for (const album of albaBezDne) {
+    if (rozpocet.vyprsel()) {
+      chyby.push("Časový rozpočet vyčerpán (dohledávání data vydání na MusicBrainz) – zbytek doběhne příště.");
+      break;
+    }
     const interpret = album.interpreti[0]?.interpret;
     try {
-      const fakta = await faktaZMusicBrainzAlbum(album.nazev, interpret?.nazev);
+      const fakta = await faktaZMusicBrainzAlbum(album.nazev, interpret?.nazev, rozpocet);
       const d = parsujDatum(fakta?.datumVydani);
       if (!d.mmdd && !fakta?.datumVydani) continue;
       if (fakta?.datumVydani && !album.datumVydani) {
@@ -224,15 +263,21 @@ export async function doplnitVyrociZKatalogu(limitMb = 6): Promise<VysledekVyroc
     }
   }
 
-  const lideBezDne = await prisma.hudebnik.findMany({
-    where: { datumNarozeni: null },
-    include: { clenstvi: { include: { interpret: true }, take: 1 } },
-    take: Math.max(2, Math.floor(limitMb / 2)),
-  });
+  const lideBezDne = rozpocet.vyprsel()
+    ? []
+    : await prisma.hudebnik.findMany({
+        where: { datumNarozeni: null },
+        include: { clenstvi: { include: { interpret: true }, take: 1 } },
+        take: Math.max(2, Math.floor(limitMb / 2)),
+      });
 
   for (const h of lideBezDne) {
+    if (rozpocet.vyprsel()) {
+      chyby.push("Časový rozpočet vyčerpán (dohledávání narození na MusicBrainz) – zbytek doběhne příště.");
+      break;
+    }
     try {
-      const fakta = await faktaZMusicBrainzHudebnik(h.jmeno);
+      const fakta = await faktaZMusicBrainzHudebnik(h.jmeno, rozpocet);
       const d = parsujDatum(fakta?.datumNarozeni);
       if (fakta?.datumNarozeni && !h.datumNarozeni) {
         await prisma.hudebnik.update({

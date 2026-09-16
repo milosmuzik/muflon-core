@@ -6,6 +6,7 @@ import {
   urovenDuveryPriorita,
   urovenDuveryZeZdroje,
 } from "@/lib/constants";
+import { type RozpocetCasu, VYCHOZI_ROZPOCET_MS, vytvorRozpocet } from "@/lib/agent/rozpocet-casu";
 
 export type VysledekAutomatickeRevize = {
   schvaleno: number;
@@ -147,15 +148,17 @@ async function rozhodniPodleExistujicichZdroju(): Promise<{
   };
 }
 
-export async function spustitAutomatickouRevizi(): Promise<VysledekAutomatickeRevize> {
+export async function spustitAutomatickouRevizi(
+  rozpocet: RozpocetCasu = vytvorRozpocet(VYCHOZI_ROZPOCET_MS)
+): Promise<VysledekAutomatickeRevize> {
   const existujici = await rozhodniPodleExistujicichZdroju();
 
   let dohledano = 0;
   let smazanoBezZdroje = 0;
   const chyby: string[] = [];
 
-  if (!existujici.jesteRozhodovat) {
-    const dohledani = await dohledatChybejiciZdroje(2);
+  if (!existujici.jesteRozhodovat && !rozpocet.vyprsel()) {
+    const dohledani = await dohledatChybejiciZdroje(2, rozpocet);
     dohledano = dohledani.nalezeno;
     smazanoBezZdroje = dohledani.smazano;
     chyby.push(...dohledani.chyby);

@@ -8,9 +8,10 @@ import {
   POZNAMKA_DOHLEDANO,
 } from "@/lib/constants";
 import { zvazAutomatickeSchvaleni } from "@/lib/actions/spolecne";
-import { dohledatZdrojeVDavce, type NalezenyZdroj } from "@/lib/agent/dohledat-zdroj";
+import { dohledatZdrojeVDavce } from "@/lib/agent/dohledat-zdroj";
 import { smazatStavovouEntitu } from "@/lib/agent/uklid";
 import { GeminiQuotaError, jeKvotaChyba } from "@/lib/agent/gemini";
+import { type RozpocetCasu, VYCHOZI_ROZPOCET_MS, vytvorRozpocet } from "@/lib/agent/rozpocet-casu";
 
 export type VysledekDohledani = {
   zkontrolovano: number;
@@ -53,12 +54,19 @@ async function entityBezZdroje(
     .map((u) => ({ id: u.id, nazev: u.nazev, obsah: u.popis ?? "" }));
 }
 
-export async function dohledatChybejiciZdroje(limitNaDavku = 5): Promise<VysledekDohledani> {
+export async function dohledatChybejiciZdroje(
+  limitNaDavku = 5,
+  rozpocet: RozpocetCasu = vytvorRozpocet(VYCHOZI_ROZPOCET_MS)
+): Promise<VysledekDohledani> {
   let zkontrolovano = 0;
   let nalezeno = 0;
   let smazano = 0;
   let preskocenoKvota = 0;
   const chyby: string[] = [];
+
+  if (rozpocet.vyprsel()) {
+    return { zkontrolovano, nalezeno, smazano, preskocenoKvota, chyby };
+  }
 
   const fronta = [
     ...(await entityBezZdroje("Pribeh", limitNaDavku)).map((e) => ({ typ: "Pribeh" as const, ...e })),
@@ -71,10 +79,11 @@ export async function dohledatChybejiciZdroje(limitNaDavku = 5): Promise<Vyslede
 
   // Jeden dávkový běh (interně max. 10 položek na 1 groundované volání Gemini,
   // jinak méně) místo 1 volání na entitu – viz dohledatZdrojeVDavce.
-  let vysledky: Map<string, NalezenyZdroj>;
+  let vysledek: Awaited<ReturnType<typeof dohledatZdrojeVDavce>>;
   try {
-    vysledky = await dohledatZdrojeVDavce(
-      fronta.map((e) => ({ klic: `${e.typ}:${e.id}`, nazev: e.nazev, obsah: e.obsah }))
+    vysledek = await dohledatZdrojeVDavce(
+      fronta.map((e) => ({ klic: `${e.typ}:${e.id}`, nazev: e.nazev, obsah: e.obsah })),
+      rozpocet
     );
   } catch (e) {
     if (jeKvotaChyba(e) || e instanceof GeminiQuotaError) {
@@ -89,10 +98,18 @@ export async function dohledatChybejiciZdroje(limitNaDavku = 5): Promise<Vyslede
     throw e;
   }
 
+  const { vysledky, nezpracovano } = vysledek;
+
   for (const entita of fronta) {
+    const klic = `${entita.typ}:${entita.id}`;
+    // Časový rozpočet vypršel dřív, než se na tuhle položku vůbec dostalo:
+    // NESMÍ se to vyhodnotit jako "zdroj nenalezen" (to by ji smazalo) –
+    // prostě zůstává beze změny a zkusí se v příštím běhu.
+    if (nezpracovano.has(klic)) continue;
+
     zkontrolovano++;
     try {
-      const nalez = vysledky.get(`${entita.typ}:${entita.id}`) ?? null;
+      const nalez = vysledky.get(klic) ?? null;
       if (!nalez) {
         if (await smazatStavovouEntitu(entita.typ, entita.id)) smazano++;
         continue;
