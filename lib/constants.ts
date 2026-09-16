@@ -101,6 +101,24 @@ export const EXTERNI_ZDROJ_TIMEOUT_MS = 8000;
  * mít strop – jinak jedno zaseknuté volání spolyká zbytek dávky/cronu.
  */
 export const GEMINI_TIMEOUT_MS = 25000;
+
+/**
+ * Celkový časový rozpočet pro JEDEN běh cronu /api/cron/auto-doplnovani
+ * (viz lib/agent/rozpocet-casu.ts). maxDuration té route je 60s (strop
+ * Vercel Hobby) – rozpočet je vědomě výrazně nižší, ať zbyde reálná
+ * rezerva na cold start funkce, připojení k Neonu a závěrečné
+ * revalidatePath, které rozpočtem samy o sobě chráněné nejsou.
+ */
+export const ROZPOCET_AUTO_DOPLNOVANI_MS = Number(process.env.ROZPOCET_AUTO_DOPLNOVANI_MS || 35_000);
+
+/**
+ * Celkový časový rozpočet pro JEDEN běh cronu /api/cron/sdruzena-kontrola,
+ * sdílený mezi VŠEMI kroky spustitSdruzeneKontroly() A následným
+ * vygenerovatNavrhyKalendare() volaným ve stejné route (dřív dvě na sobě
+ * nezávislé, obě neomezené fáze - hlavní zdroj opakovaných 504). Stejná
+ * logika rezervy jako u ROZPOCET_AUTO_DOPLNOVANI_MS výše.
+ */
+export const ROZPOCET_SDRUZENA_KONTROLA_MS = Number(process.env.ROZPOCET_SDRUZENA_KONTROLA_MS || 45_000);
 // Renomovaná rocková/metalová média a databáze s historií – redakcí ručně
 // odsouhlasený seznam domén (stav k 29. 8. 2026, viz redakční poznámka u
 // jednotlivých skupin). Zdroj v kategorii "media" nebo "databaze" počítá
