@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { overCron } from "@/lib/over-cron";
 import { spustitAutomatickeDoplnovani } from "@/lib/actions/auto-doplnovani";
+import { ROZPOCET_AUTO_DOPLNOVANI_MS } from "@/lib/constants";
+import { vytvorRozpocet } from "@/lib/agent/rozpocet-casu";
 
-// Hobby plán: max 60 s. Vnitřní smyčka (auto-doplnovani.ts) se sama
-// zastavuje po ~30 s – tohle je jen tvrdý strop pro jistotu, ať Vercel
-// funkci nezabije uprostřed rozjetého Gemini/MusicBrainz volání.
+// Hobby plán: max 60 s. Skutečná ochrana proti přesažení už ale NENÍ tenhle
+// export sám o sobě – je to sdílený časový rozpočet ROZPOCET_AUTO_DOPLNOVANI_MS
+// (aktuálně výrazně nižší než 60s, viz lib/constants.ts), provázaný přes
+// AbortSignal se všemi síťovými voláními uvnitř (lib/agent/rozpocet-casu.ts).
+// Tenhle export je jen krajní pojistka pro Vercel, kdyby si funkce přesto
+// vzala víc, než by měla.
 export const maxDuration = 60;
 
 // Voláno externě z cron-job.org (Vercel Hobby cron neumí častěji než 1x/den)
@@ -14,6 +19,11 @@ export async function GET(request: NextRequest) {
   const zamitnout = overCron(request);
   if (zamitnout) return zamitnout;
 
-  const vysledek = await spustitAutomatickeDoplnovani();
-  return NextResponse.json(vysledek);
+  const rozpocet = vytvorRozpocet(ROZPOCET_AUTO_DOPLNOVANI_MS);
+  try {
+    const vysledek = await spustitAutomatickeDoplnovani(rozpocet);
+    return NextResponse.json(vysledek);
+  } finally {
+    rozpocet.uklidit();
+  }
 }
