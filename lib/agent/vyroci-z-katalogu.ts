@@ -3,7 +3,7 @@ import { zapisHistorii } from "@/lib/history";
 import { jsouDuplicitni } from "@/lib/agent/duplicity";
 import { urovenDuveryZeZdroje } from "@/lib/constants";
 import { faktaZMusicBrainzAlbum, faktaZMusicBrainzHudebnik } from "@/lib/agent/databaze";
-import { type RozpocetCasu, VYCHOZI_ROZPOCET_MS, vytvorRozpocet } from "@/lib/agent/rozpocet-casu";
+import { type RozpocetCasu, VYCHOZI_ROZPOCET_MS, sOmezenymCekanim, vytvorRozpocet } from "@/lib/agent/rozpocet-casu";
 
 export function parsujDatum(s: string | null | undefined): { mmdd?: string; rok?: number } {
   if (!s) return {};
@@ -22,26 +22,57 @@ export function parsujDatum(s: string | null | undefined): { mmdd?: string; rok?
   return {};
 }
 
-async function uzExistuje(nazev: string, mmdd: string): Promise<boolean> {
-  const stejnyDen = await prisma.udalost.findMany({
-    where: { datum: mmdd },
-    select: { nazev: true },
-  });
-  return stejnyDen.some((u) => jsouDuplicitni(u.nazev, nazev));
+/**
+ * Index existujících událostí podle MM-DD, natažený JEDNÍM dotazem na
+ * začátku doplnitVyrociZKatalogu – náhrada za dřívější uzExistuje(), která
+ * dělala 1 DB dotaz PRO KAŽDOU KANDIDÁTNÍ POLOŽKU zvlášť (album/narození/
+ * úmrtí). U katalogu v řádu stovek záznamů to bylo stovky sekvenčních
+ * DB odezev jen na kontrolu duplicit – v praxi to dokázalo samo o sobě
+ * spolykat celý časový rozpočet (viz "Časový rozpočet (45000ms) vypršel"
+ * při ručním spuštění sdružené kontroly), takže na kroky "dohledání
+ * zdrojů" a "automatická revize" pak nezbýval čas VŮBEC, opakovaně, dávku
+ * za dávkou. Jeden úvodní dotaz + kontrola v paměti tohle zredukuje na
+ * zlomek času bez ohledu na to, jak velký katalog naroste.
+ */
+type IndexExistujicich = Map<string, string[]>;
+
+async function nacistIndexExistujicich(): Promise<IndexExistujicich> {
+  const vse = await prisma.udalost.findMany({ select: { datum: true, nazev: true } });
+  const index: IndexExistujicich = new Map();
+  for (const u of vse) {
+    const seznam = index.get(u.datum);
+    if (seznam) seznam.push(u.nazev);
+    else index.set(u.datum, [u.nazev]);
+  }
+  return index;
 }
 
-async function vytvorVyroci(args: {
-  nazev: string;
-  typ: "vyroci_alba" | "narozeniny" | "umrti";
-  mmdd: string;
-  popis: string;
-  interpretId?: string;
-  zdrojNazev?: string;
-  zdrojUrl?: string;
-  kategorie?: string;
-  stav?: string;
-}) {
-  if (await uzExistuje(args.nazev, args.mmdd)) return false;
+function jeVIndexu(index: IndexExistujicich, mmdd: string, nazev: string): boolean {
+  const seznam = index.get(mmdd);
+  return seznam ? seznam.some((n) => jsouDuplicitni(n, nazev)) : false;
+}
+
+function pridejDoIndexu(index: IndexExistujicich, mmdd: string, nazev: string): void {
+  const seznam = index.get(mmdd);
+  if (seznam) seznam.push(nazev);
+  else index.set(mmdd, [nazev]);
+}
+
+async function vytvorVyroci(
+  index: IndexExistujicich,
+  args: {
+    nazev: string;
+    typ: "vyroci_alba" | "narozeniny" | "umrti";
+    mmdd: string;
+    popis: string;
+    interpretId?: string;
+    zdrojNazev?: string;
+    zdrojUrl?: string;
+    kategorie?: string;
+    stav?: string;
+  }
+) {
+  if (jeVIndexu(index, args.mmdd, args.nazev)) return false;
 
   const kategorie = args.kategorie ?? "databaze";
   const urover = urovenDuveryZeZdroje(kategorie, args.zdrojUrl ?? null);
@@ -86,6 +117,7 @@ async function vytvorVyroci(args: {
   }
 
   await zapisHistorii("Udalost", u.id, "vytvoreno", "Výročí z katalogu");
+  pridejDoIndexu(index, args.mmdd, args.nazev);
   return true;
 }
 
@@ -100,10 +132,9 @@ export type VysledekVyroci = {
 /**
  * `rozpocet` se kontroluje na začátku KAŽDÉ iterace všech čtyř dávek níže
  * (dvě čistě databázové – albaSDatem/lide – i dvě se síťovými voláními na
- * MusicBrainz – albaBezDne/lideBezDne). Databázové smyčky projdou celý
- * katalog (roste s ním – u velkého katalogu proto mají i ONY smysl chránit
- * rozpočtem, i když samy o sobě nedělají síťová volání), takže bez kontroly
- * by časem mohly začít brát nezanedbatelnou část rozpočtu i tady.
+ * MusicBrainz – albaBezDne/lideBezDne). Databázové smyčky (od zavedení
+ * indexu výše) jsou teď rychlé i pro velký katalog, ale kontrola zůstává
+ * jako levná pojistka.
  *
  * Přeskočení kvůli vypršelému rozpočtu se počítá do `preskoceno` stejně
  * jako přeskočení kvůli duplicitě – jde jen o to, že se výročí založí až v
@@ -121,6 +152,14 @@ export async function doplnitVyrociZKatalogu(
   let preskoceno = 0;
 
   if (rozpocet.vyprsel()) {
+    return { alba, hudebnici, doplnenaData, preskoceno, chyby };
+  }
+
+  let index: IndexExistujicich;
+  try {
+    index = await sOmezenymCekanim(nacistIndexExistujicich(), "Načtení indexu existujících událostí", 8000);
+  } catch (e) {
+    chyby.push((e as Error).message);
     return { alba, hudebnici, doplnenaData, preskoceno, chyby };
   }
 
@@ -145,7 +184,7 @@ export async function doplnitVyrociZKatalogu(
     const nazev = `${kdo} vydali album ${album.nazev}`;
     const rok = d.rok ? ` (${d.rok})` : "";
     try {
-      const ok = await vytvorVyroci({
+      const ok = await vytvorVyroci(index, {
         nazev,
         typ: "vyroci_alba",
         mmdd: d.mmdd,
@@ -179,7 +218,7 @@ export async function doplnitVyrociZKatalogu(
     const narozeni = parsujDatum(h.datumNarozeni);
     if (narozeni.mmdd) {
       try {
-        const ok = await vytvorVyroci({
+        const ok = await vytvorVyroci(index, {
           nazev: `Narozeniny: ${h.jmeno}`,
           typ: "narozeniny",
           mmdd: narozeni.mmdd,
@@ -198,7 +237,7 @@ export async function doplnitVyrociZKatalogu(
     const umrti = parsujDatum(h.datumUmrti);
     if (umrti.mmdd) {
       try {
-        const ok = await vytvorVyroci({
+        const ok = await vytvorVyroci(index, {
           nazev: `Úmrtí: ${h.jmeno}`,
           typ: "umrti",
           mmdd: umrti.mmdd,
@@ -245,7 +284,7 @@ export async function doplnitVyrociZKatalogu(
         doplnenaData++;
       }
       if (d.mmdd && interpret) {
-        const ok = await vytvorVyroci({
+        const ok = await vytvorVyroci(index, {
           nazev: `${interpret.nazev} vydali album ${album.nazev}`,
           typ: "vyroci_alba",
           mmdd: d.mmdd,
@@ -290,7 +329,7 @@ export async function doplnitVyrociZKatalogu(
         doplnenaData++;
       }
       if (d.mmdd) {
-        const ok = await vytvorVyroci({
+        const ok = await vytvorVyroci(index, {
           nazev: `Narozeniny: ${h.jmeno}`,
           typ: "narozeniny",
           mmdd: d.mmdd,
