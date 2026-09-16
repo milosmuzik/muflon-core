@@ -19,6 +19,23 @@ const NAZVY_MESICU_2P = [
 
 const MAX_UDALOSTI_NA_DEN = 3;
 
+/**
+ * Kolik dní ZPĚTNĚ se má kalendář sám dohánět, když pro některý z nich
+ * zůstalo míň než MAX_UDALOSTI_NA_DEN událostí – typicky proto, že mu
+ * minule došel časový rozpočet (viz "kalendar" chyba ve výsledku
+ * spustitSdruzeneKontroly) nebo Gemini volání jinak selhalo. Bez tohohle by
+ * takový den zůstal bez AI návrhu NATRVALO (do stejného data příští rok) –
+ * vygenerovatNavrhyKalendare se totiž jinak ptá vždycky jen na "dnešek".
+ *
+ * Bezpečné proti zbytečnému opakování: den, který má už dost událostí, se
+ * přeskočí bez volání Gemini (viz kontrola délky `existujiciTentoDen` níž),
+ * takže zpětná kontrola v běžném provozu (den se stihl v pořádku) nestojí
+ * žádná navíc volání. Den, který ověřitelně nic nemá (Gemini vrátí prázdné
+ * pole), se zpětně zkusí max. tolikrát, kolik dní zpátky tahle konstanta
+ * sahá (pak vypadne z okna a dál se netahá) – ne donekonečna.
+ */
+const DNI_ZPETNE_KONTROLY = 5;
+
 type NavrzenaUdalost = {
   nazev: string;
   typ: "vyroci_alba" | "narozeniny" | "umrti" | "jina";
@@ -56,27 +73,38 @@ export type VysledekAgenta = {
 };
 
 export async function vygenerovatNavrhyKalendare(
-  pocetDni = 1,
+  pocetDniDopredu = 1,
   rozpocet: RozpocetCasu = vytvorRozpocet(VYCHOZI_ROZPOCET_MS)
 ): Promise<VysledekAgenta> {
   if (!geminiJeDostupne()) throw new GeminiQuotaError("Chybí GEMINI_API_KEY nebo je kvóta vyčerpaná.");
 
-  const dni = Math.max(1, Math.min(pocetDni, 3));
+  const dopredu = Math.max(1, Math.min(pocetDniDopredu, 3));
   let navrzeno = 0;
   let preskoceno = 0;
   let bezDostatecnehoZdroje = 0;
+  let zpracovanoDni = 0;
   const chyby: string[] = [];
 
-  for (let i = 0; i < dni; i++) {
+  // Pořadí: nejdřív dnešek (a případně pár dní dopředu, podle pocetDniDopredu)
+  // - to je nejdůležitější a nejaktuálnější. Teprve pak, pokud v rozpočtu
+  // zbývá čas, se prochází DNI_ZPETNE_KONTROLY dní zpátky, ať se doženou dny,
+  // které minule zůstaly nedostatečně pokryté (viz komentář u konstanty
+  // výše). Dnešek má vždycky přednost před dohledáváním minulosti.
+  const offsety: number[] = [];
+  for (let i = 0; i < dopredu; i++) offsety.push(i);
+  for (let i = 1; i <= DNI_ZPETNE_KONTROLY; i++) offsety.push(-i);
+
+  for (const offset of offsety) {
     if (rozpocet.vyprsel()) {
-      chyby.push("Časový rozpočet vyčerpán, zbytek dní kalendáře přeskočen (doběhne příště).");
+      chyby.push("Časový rozpočet vyčerpán, zbytek dní kalendáře (včetně zpětné kontroly) přeskočen – doběhne příště.");
       break;
     }
     const datum = new Date();
-    datum.setDate(datum.getDate() + i);
+    datum.setDate(datum.getDate() + offset);
     const den = datum.getDate();
     const mesic = datum.getMonth() + 1;
     const mmdd = `${String(mesic).padStart(2, "0")}-${String(den).padStart(2, "0")}`;
+    zpracovanoDni++;
     try {
       const existujiciTentoDen = await prisma.udalost.findMany({ where: { datum: mmdd }, select: { nazev: true } });
       if (existujiciTentoDen.length >= MAX_UDALOSTI_NA_DEN) {
@@ -152,5 +180,5 @@ export async function vygenerovatNavrhyKalendare(
     }
   }
 
-  return { zpracovanoDni: dni, navrzeno, preskoceno, bezDostatecnehoZdroje, chyby };
+  return { zpracovanoDni, navrzeno, preskoceno, bezDostatecnehoZdroje, chyby };
 }
