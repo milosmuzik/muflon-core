@@ -20,6 +20,7 @@ const NAZVY_MESICU_2P = [
 const MAX_UDALOSTI_NA_DEN = 3;
 const DNI_ZPETNE_KONTROLY = 5;
 const MAX_DNI_DOPREDU = 14;
+const STAVY_KTERE_PLNI_DEN = new Set(["navrh", "overeno", "schvaleno", "publikovano"]);
 
 type NavrzenaUdalost = {
   nazev: string;
@@ -70,7 +71,6 @@ export async function vygenerovatNavrhyKalendare(
   let zpracovanoDni = 0;
   const chyby: string[] = [];
 
-  // Priorita: zítřek a další dny, pak dnešek, teprve potom děry dozadu.
   const offsety: number[] = [];
   for (let i = 1; i < dopredu; i++) offsety.push(i);
   offsety.push(0);
@@ -88,9 +88,13 @@ export async function vygenerovatNavrhyKalendare(
     const mmdd = `${String(mesic).padStart(2, "0")}-${String(den).padStart(2, "0")}`;
     zpracovanoDni++;
     try {
-      const existujiciTentoDen = await prisma.udalost.findMany({ where: { datum: mmdd }, select: { nazev: true } });
-      if (existujiciTentoDen.length >= MAX_UDALOSTI_NA_DEN) {
-        preskoceno += existujiciTentoDen.length;
+      const existujiciTentoDen = await prisma.udalost.findMany({
+        where: { datum: mmdd },
+        select: { nazev: true, stav: true },
+      });
+      const aktivni = existujiciTentoDen.filter((u) => STAVY_KTERE_PLNI_DEN.has(u.stav));
+      if (aktivni.length >= MAX_UDALOSTI_NA_DEN) {
+        preskoceno += aktivni.length;
         continue;
       }
       const surovaOdpoved = await zavolejGemini(sestavPrompt(den, mesic), { hledat: true, maxVystup: 700 }, rozpocet);
@@ -105,6 +109,7 @@ export async function vygenerovatNavrhyKalendare(
           preskoceno++;
           continue;
         }
+        if (aktivni.length >= MAX_UDALOSTI_NA_DEN) break;
         const typ = ["vyroci_alba", "narozeniny", "umrti", "jina"].includes(polozka.typ) ? polozka.typ : "jina";
         const vyhodnoceneZdroje: { nazev: string; url: string; kategorie: string; uroverDuvery: string }[] = [];
         let nejvyssiUroven = 0;
@@ -138,7 +143,8 @@ export async function vygenerovatNavrhyKalendare(
             zverejnitNaSitich: false,
           },
         });
-        existujiciTentoDen.push({ nazev: novaUdalost.nazev });
+        existujiciTentoDen.push({ nazev: novaUdalost.nazev, stav: "schvaleno" });
+        aktivni.push({ nazev: novaUdalost.nazev, stav: "schvaleno" });
         for (const zdroj of vyhodnoceneZdroje) {
           await prisma.zdroj.create({
             data: {
