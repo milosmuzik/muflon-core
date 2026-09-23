@@ -51,19 +51,21 @@ export type VysledekSdruzeneKontroly = {
   chyby: string[];
 };
 
-/**
- * Šest kroků níž dřív běželo úplně bez časové ochrany (jen dávky byly
- * zmenšené, viz komentáře u jednotlivých volání) – to byl hlavní zdroj
- * opakovaných 504 FUNCTION_INVOCATION_TIMEOUT (viz redakční poznámka u
- * EXTERNI_ZDROJ_TIMEOUT_MS v lib/constants.ts). Teď sdílí JEDEN časový
- * rozpočet (rozpocet, výchozí ROZPOCET_SDRUZENA_KONTROLA_MS): mezi kroky se
- * kontroluje, jestli ještě zbývá čas, a pokud ne, zbylé kroky se vůbec
- * nezačnou (radši dokončit první 3-4 kroky pořádně, než rozjet všech 6 a
- * nechat je useknout uprostřed). Stejný rozpočet dál pokračuje i do
- * navrhy-kalendar.ts, který se volá HNED PO téhle funkci ve stejné route
- * (app/api/cron/sdruzena-kontrola/route.ts) - dřív to byly dvě na sobě
- * nezávislé, obě neomezené fáze.
- */
+type SitovyKrok = "vyroci" | "katalog" | "zdroje" | "revize";
+
+function sitoveKrokyDnes(): SitovyKrok[] {
+  const kombinace: SitovyKrok[][] = [
+    ["vyroci", "katalog"],
+    ["katalog", "zdroje"],
+    ["zdroje", "revize"],
+    ["vyroci", "zdroje"],
+    ["katalog", "revize"],
+    ["vyroci", "revize"],
+    ["katalog", "zdroje"],
+  ];
+  return kombinace[new Date().getUTCDay()];
+}
+
 export async function spustitSdruzeneKontrolu(
   rozpocet: RozpocetCasu = vytvorRozpocet(ROZPOCET_SDRUZENA_KONTROLA_MS)
 ): Promise<VysledekSdruzeneKontroly> {
@@ -87,18 +89,14 @@ export async function spustitSdruzeneKontrolu(
     chyby: [],
   };
   let revize: VysledekAutomatickeRevize = { ...PRAZDNY_VYSLEDEK };
+  const dnes = new Set(sitoveKrokyDnes());
 
-  // Krok 1 (úklid odpadu): čistě DB, žádná síťová volání, běžně řádově
-  // milisekundy až jednotky sekund i pro desítky záznamů - proto běží vždy,
-  // bez podmínky na rozpočet, ať se aspoň tenhle levný úklid stihne i pod
-  // časovým tlakem.
   try {
     odpad = await smazatOdpadoveInterprety();
   } catch (e) {
     chyby.push((e as Error).message || "Úklid odpadu selhal.");
   }
 
-  // Krok 2 (oprava feat): taky čistě DB, žádná síťová volání.
   if (!rozpocet.vyprsel()) {
     try {
       feat = await opravitFeatDavku();
@@ -110,52 +108,48 @@ export async function spustitSdruzeneKontrolu(
     chyby.push("Časový rozpočet vyčerpán před krokem 'oprava feat' – přeskočeno, doběhne příště.");
   }
 
-  if (!rozpocet.vyprsel()) {
+  if (dnes.has("vyroci") && !rozpocet.vyprsel()) {
     try {
       vyroci = await doplnitVyrociZKatalogu(4, rozpocet);
       chyby.push(...vyroci.chyby);
     } catch (e) {
       chyby.push((e as Error).message || "Výročí z katalogu selhala.");
     }
-  } else {
-    chyby.push("Časový rozpočet vyčerpán před krokem 'výročí z katalogu' – přeskočeno, doběhne příště.");
+  } else if (!dnes.has("vyroci")) {
+    chyby.push("Krok 'výročí z katalogu' dnes v rotaci neběží.");
   }
 
-  if (!rozpocet.vyprsel()) {
+  if (dnes.has("katalog") && !rozpocet.vyprsel()) {
     try {
-      // Zmenšeno z 6 na 4 kvůli 60s stropu na Hobby (dřív mělo 300s). Katalog
-      // teď navíc dostává mnohem větší dávky průběžně přes den z nové
-      // automatiky (lib/actions/auto-doplnovani.ts, cron-job.org co 15 min).
       katalog = await doplnitKatalogDavku(4, rozpocet);
       chyby.push(...katalog.chyby);
     } catch (e) {
       chyby.push((e as Error).message || "Doplnění katalogu selhalo.");
     }
-  } else {
-    chyby.push("Časový rozpočet vyčerpán před krokem 'doplnění katalogu' – přeskočeno, doběhne příště.");
+  } else if (!dnes.has("katalog")) {
+    chyby.push("Krok 'doplnění katalogu' dnes v rotaci neběží.");
   }
 
-  if (!rozpocet.vyprsel()) {
+  if (dnes.has("zdroje") && !rozpocet.vyprsel()) {
     try {
-      // Zmenšeno z 10 na 5 kvůli 60s stropu na Hobby (dřív mělo 300s).
       zdroje = await dohledatChybejiciZdroje(5, rozpocet);
       chyby.push(...zdroje.chyby);
     } catch (e) {
       chyby.push((e as Error).message || "Dohledání zdrojů selhalo.");
     }
-  } else {
-    chyby.push("Časový rozpočet vyčerpán před krokem 'dohledání zdrojů' – přeskočeno, doběhne příště.");
+  } else if (!dnes.has("zdroje")) {
+    chyby.push("Krok 'dohledání zdrojů' dnes v rotaci neběží.");
   }
 
-  if (!rozpocet.vyprsel()) {
+  if (dnes.has("revize") && !rozpocet.vyprsel()) {
     try {
       revize = await spustitAutomatickouRevizi(rozpocet);
       chyby.push(...revize.chyby);
     } catch (e) {
       chyby.push((e as Error).message || "Revize selhala.");
     }
-  } else {
-    chyby.push("Časový rozpočet vyčerpán před krokem 'automatická revize' – přeskočeno, doběhne příště.");
+  } else if (!dnes.has("revize")) {
+    chyby.push("Krok 'automatická revize' dnes v rotaci neběží.");
   }
 
   revalidateKontrola();
