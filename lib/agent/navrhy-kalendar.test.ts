@@ -1,15 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { RozpocetCasu } from "./rozpocet-casu";
 
-// Stejná logika výpočtu MM-DD jako v navrhy-kalendar.ts, ať test nezávisí na
-// tom, jaký den je zrovna "dnes" ve skutečném kalendáři.
 function mmddPro(offset: number): string {
   const d = new Date();
   d.setDate(d.getDate() + offset);
   return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-const existujiciPodleData: Record<string, { nazev: string }[]> = {};
+const existujiciPodleData: Record<string, { nazev: string; stav: string }[]> = {};
 const findManyMock = vi.fn(async ({ where }: { where: { datum: string } }) => existujiciPodleData[where.datum] ?? []);
 const createMock = vi.fn(async ({ data }: { data: { nazev: string } }) => ({ id: `id-${Math.random()}`, nazev: data.nazev }));
 
@@ -41,7 +39,6 @@ vi.mock("./gemini", () => ({
 
 const { vygenerovatNavrhyKalendare } = await import("./navrhy-kalendar");
 
-/** Rozpočet, který "vyprší" přesně po zadaném počtu dotazů na vyprsel(). */
 function falesnyRozpocet(vyprsiPoNKontrolach: number): RozpocetCasu {
   let pocet = 0;
   return {
@@ -73,15 +70,29 @@ describe("vygenerovatNavrhyKalendare – zpětná kontrola posledních dní", ()
     expect(vysledek.chyby).toEqual([]);
   });
 
-  it("den, který už má dost událostí, přeskočí BEZ volání Gemini", async () => {
-    existujiciPodleData[mmddPro(0)] = [{ nazev: "a" }, { nazev: "b" }, { nazev: "c" }];
+  it("den, který už má dost živých událostí, přeskočí BEZ volání Gemini", async () => {
+    existujiciPodleData[mmddPro(0)] = [
+      { nazev: "a", stav: "schvaleno" },
+      { nazev: "b", stav: "publikovano" },
+      { nazev: "c", stav: "navrh" },
+    ];
 
     const vysledek = await vygenerovatNavrhyKalendare(1, falesnyRozpocet(999));
 
-    // Dnešek (offset 0) má už 3 události → přeskočen bez Gemini; zbylých 5
-    // zpětných dní žádné události nemá → pro ně se Gemini volá.
     expect(zavolejGeminiMock).toHaveBeenCalledTimes(5);
     expect(vysledek.preskoceno).toBe(3);
+  });
+
+  it("den plný jen archivovaných událostí se stále doplňuje", async () => {
+    existujiciPodleData[mmddPro(0)] = [
+      { nazev: "staré 1", stav: "archivovano" },
+      { nazev: "staré 2", stav: "archivovano" },
+      { nazev: "staré 3", stav: "archivovano" },
+    ];
+
+    await vygenerovatNavrhyKalendare(1, falesnyRozpocet(999));
+
+    expect(zavolejGeminiMock).toHaveBeenCalledTimes(6);
   });
 
   it("dnešek se kontroluje PŘED zpětnými dny (pořadí offsetů)", async () => {
@@ -93,12 +104,11 @@ describe("vygenerovatNavrhyKalendare – zpětná kontrola posledních dní", ()
 
     await vygenerovatNavrhyKalendare(1, falesnyRozpocet(999));
 
-    expect(volaneMmdd[0]).toBe(mmddPro(0)); // dnešek první
+    expect(volaneMmdd[0]).toBe(mmddPro(0));
     expect(volaneMmdd).toEqual([mmddPro(0), mmddPro(-1), mmddPro(-2), mmddPro(-3), mmddPro(-4), mmddPro(-5)]);
   });
 
   it("když rozpočet vyprší uprostřed zpětné kontroly, zbytek dní se vůbec nezkusí", async () => {
-    // Rozpočet dovolí projít jen první 2 kontroly vyprsel() (= 2 dny), pak "vyprší".
     const vysledek = await vygenerovatNavrhyKalendare(1, falesnyRozpocet(2));
 
     expect(zavolejGeminiMock).toHaveBeenCalledTimes(2);
