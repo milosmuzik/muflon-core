@@ -1,5 +1,6 @@
 import { EXTERNI_ZDROJ_TIMEOUT_MS } from "@/lib/constants";
 import { type RozpocetCasu, signalNaVolani } from "@/lib/agent/rozpocet-casu";
+import { pockejNaSazbu } from "@/lib/agent/sazebnik";
 
 export type NalezenyZdroj = { nazev: string; url: string; kategorie: string };
 
@@ -29,20 +30,23 @@ function vytahniOdkazy(html: string): { text: string; url: string }[] {
   return vysledek;
 }
 
-/**
- * `rozpocet` je volitelný, ale kdykoliv je k dispozici (cron), MUSÍ se
- * předat – jinak funkce dál poslušně čeká plných EXTERNI_ZDROJ_TIMEOUT_MS
- * i v okamžiku, kdy už z celkového rozpočtu nic nezbývá (viz
- * lib/agent/rozpocet-casu.ts pro vysvětlení, proč na tom záleží).
- */
-async function maAjax(cesta: string, rozpocet?: RozpocetCasu): Promise<string[][]> {
-  if (rozpocet?.vyprsel()) return [];
-  const url = `https://www.metal-archives.com${cesta}`;
-  const odpoved = await fetch(url, {
+async function fetchSluzby(
+  sluzba: "musicbrainz" | "metalarchives",
+  url: string,
+  rozpocet?: RozpocetCasu
+): Promise<Response | null> {
+  const ok = await pockejNaSazbu(sluzba, rozpocet);
+  if (!ok) return null;
+  return fetch(url, {
     headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
     signal: rozpocet ? signalNaVolani(rozpocet, EXTERNI_ZDROJ_TIMEOUT_MS) : AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
   });
-  if (!odpoved.ok) return [];
+}
+
+async function maAjax(cesta: string, rozpocet?: RozpocetCasu): Promise<string[][]> {
+  if (rozpocet?.vyprsel()) return [];
+  const odpoved = await fetchSluzby("metalarchives", `https://www.metal-archives.com${cesta}`, rozpocet);
+  if (!odpoved || !odpoved.ok) return [];
   const data = await odpoved.json();
   return Array.isArray(data?.aaData) ? data.aaData : [];
 }
@@ -147,11 +151,12 @@ export async function faktaZMusicBrainzHudebnik(
 } | null> {
   if (rozpocet?.vyprsel()) return null;
   const dotaz = encodeURIComponent(`artist:"${jmeno.replace(/"/g, "")}" AND type:person`);
-  const odpoved = await fetch(`https://musicbrainz.org/ws/2/artist/?query=${dotaz}&fmt=json&limit=5`, {
-    headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-    signal: rozpocet ? signalNaVolani(rozpocet, EXTERNI_ZDROJ_TIMEOUT_MS) : AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
-  });
-  if (!odpoved.ok) return null;
+  const odpoved = await fetchSluzby(
+    "musicbrainz",
+    `https://musicbrainz.org/ws/2/artist/?query=${dotaz}&fmt=json&limit=5`,
+    rozpocet
+  );
+  if (!odpoved || !odpoved.ok) return null;
   const data = await odpoved.json();
   const hit = (data.artists ?? []).find(
     (a: { name: string; score?: number }) => shodaNazvu(a.name, jmeno) && (a.score ?? 0) >= 90
@@ -163,11 +168,8 @@ export async function faktaZMusicBrainzHudebnik(
       zdroj: { nazev: "MusicBrainz", url: `https://musicbrainz.org/artist/${hit.id}`, kategorie: "databaze" },
     };
   }
-  const detail = await fetch(`https://musicbrainz.org/ws/2/artist/${hit.id}?fmt=json`, {
-    headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-    signal: rozpocet ? signalNaVolani(rozpocet, EXTERNI_ZDROJ_TIMEOUT_MS) : AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
-  });
-  if (!detail.ok) {
+  const detail = await fetchSluzby("musicbrainz", `https://musicbrainz.org/ws/2/artist/${hit.id}?fmt=json`, rozpocet);
+  if (!detail || !detail.ok) {
     return {
       zdroj: { nazev: "MusicBrainz", url: `https://musicbrainz.org/artist/${hit.id}`, kategorie: "databaze" },
     };
@@ -189,14 +191,12 @@ export async function faktaZMusicBrainzAlbum(
   if (rozpocet?.vyprsel()) return null;
   const casti = [`release:"${nazev.replace(/"/g, "")}"`];
   if (interpret) casti.push(`artist:"${interpret.replace(/"/g, "")}"`);
-  const odpoved = await fetch(
+  const odpoved = await fetchSluzby(
+    "musicbrainz",
     `https://musicbrainz.org/ws/2/release/?query=${encodeURIComponent(casti.join(" AND "))}&fmt=json&limit=5`,
-    {
-      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-      signal: rozpocet ? signalNaVolani(rozpocet, EXTERNI_ZDROJ_TIMEOUT_MS) : AbortSignal.timeout(EXTERNI_ZDROJ_TIMEOUT_MS),
-    }
+    rozpocet
   );
-  if (!odpoved.ok) return null;
+  if (!odpoved || !odpoved.ok) return null;
   const data = await odpoved.json();
   const hit = (data.releases ?? []).find((r: { title: string; score?: number }) => shodaNazvu(r.title, nazev));
   if (!hit) return null;
