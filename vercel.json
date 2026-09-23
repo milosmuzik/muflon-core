@@ -1,5 +1,7 @@
 {
   "crons": [
-    { "path": "/api/cron/sdruzena-kontrola", "schedule": "0 6 * * *" }
+    { "path": "/api/cron/auto-doplnovani", "schedule": "0 4 * * *" },
+    { "path": "/api/cron/sdruzena-kontrola", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/publikovat-vyroci", "schedule": "0 8 * * *" }
   ]
 }
