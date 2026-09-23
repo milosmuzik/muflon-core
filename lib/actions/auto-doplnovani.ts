@@ -8,8 +8,8 @@ import { doplnitChybejiciPribehy } from "@/lib/agent/doplnit-pribehy";
 import { ROZPOCET_AUTO_DOPLNOVANI_MS } from "@/lib/constants";
 import { type RozpocetCasu, sOmezenymCekanim, vytvorRozpocet } from "@/lib/agent/rozpocet-casu";
 
-const DAVKA_KATALOG = 1;
-const DAVKA_VYROCI = 4;
+const DAVKA_KATALOG = 3;
+const DAVKA_VYROCI = 8;
 const DAVKA_PRIBEHY = 6;
 
 type Kategorie = "katalog" | "vyroci" | "pribehy";
