@@ -3,7 +3,7 @@
 import { useFormState, useFormStatus } from "react-dom";
 import { spustitAgentaRucne } from "@/lib/actions/agent";
 
-const pocatecniStav = { zpracovanoDni: 0, navrzeno: 0, preskoceno: 0, bezDostatecnehoZdroje: 0, chyby: [] as string[] };
+const pocatecniStav = { zpracovanoDni: 0, navrzeno: 0, preskoceno: 0, bezDostatecnehoZdroje: 0, zamitnutoMimoGrounding: 0, chyby: [] as string[] };
 
 function TlacitkoOdeslat() {
   const { pending } = useFormStatus();
@@ -29,7 +29,7 @@ export default function AgentTlacitko() {
         <div className="mt-3 text-sm space-y-1">
           <p className="text-paper">
             Zpracováno dní: {stav.zpracovanoDni} · Navrženo (rovnou schváleno): {stav.navrzeno} · Přeskočeno
-            (duplicity): {stav.preskoceno} · Bez dostatečného zdroje: {stav.bezDostatecnehoZdroje}
+            (duplicity): {stav.preskoceno} · Bez dostatečného zdroje: {stav.bezDostatecnehoZdroje} · Vymyšlené URL (mimo Google Search): {stav.zamitnutoMimoGrounding ?? 0}
           </p>
           {stav.chyby.length > 0 && (
             <ul className="text-rust text-xs space-y-0.5">

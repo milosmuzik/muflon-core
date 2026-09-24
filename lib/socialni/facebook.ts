@@ -1,3 +1,6 @@
+/** Strop pro jedno volání Graph API – bez něj by zaseknutá odpověď Mety spolykala celý cron. */
+export const SOCIALNI_TIMEOUT_MS = 10_000;
+
 export type VysledekPublikace = {
   uspech: boolean;
   externiId?: string;
@@ -23,6 +26,7 @@ export async function publikujNaFacebook(text: string, obrazekUrl?: string): Pro
     const odpoved = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(SOCIALNI_TIMEOUT_MS),
       body: JSON.stringify(telo),
     });
     const data = await odpoved.json();

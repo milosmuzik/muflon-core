@@ -267,19 +267,103 @@ export function nazevZeZdroje(url: string | null, puvodniNazev: string): string 
   return znamy ?? host;
 }
 
-// Odvodí úroveň důvěry zdroje z jeho kategorie a URL (hierarchie zdrojů
-// výše + redakční whitelist médií/databází). Jako dostatečný zdroj pro
-// automatické schválení (vysoká důvěra) počítá jen oficiální web/sociální
-// síť interpreta, nebo článek/záznam na renomovaném serveru z whitelistu
-// (ať už jde o databázi, nebo médium). Obecná databáze/archiv mimo
-// whitelist (např. Discogs, MusicBrainz) je střední, rozhovory/knihy
-// nízká, orientační zdroje (Wikipedia, fanouškovský web) neověřené.
-export function urovenDuveryZeZdroje(kategorie: string, url: string | null): string {
-  if (kategorie === "oficialni_web" || kategorie === "socialni_site") return "vysoka";
-  if (kategorie === "media" || kategorie === "databaze") {
-    if (jeRenomovanyZdroj(url)) return "vysoka";
-    return kategorie === "databaze" ? "stredni" : "neoverene";
+// Domény sociálních sítí. Zdroj v kategorii "socialni_site" má vysokou
+// důvěru JEN tehdy, když jeho URL opravdu vede na některou z nich - AI agent
+// jinak umí označit za "oficiální sociální síť" cokoliv.
+export const SOCIALNI_SITE_DOMENY = [
+  "facebook.com",
+  "fb.com",
+  "instagram.com",
+  "x.com",
+  "twitter.com",
+  "youtube.com",
+  "youtu.be",
+  "tiktok.com",
+  "threads.net",
+  "bandcamp.com",
+  "soundcloud.com",
+];
+
+// Domény, které z principu NEJSOU oficiálním webem interpreta, i kdyby je
+// tak AI agent (nebo omylem člověk) označil: encyklopedie, fanouškovské
+// wiki, obecné databáze, blogovací platformy, agregátory, Google redirect.
+// Oficiální web interpreta se jinak strojově ověřit nedá (každá kapela má
+// jinou doménu), proto platí opačná logika: vysoká důvěra, pokud doména
+// není ani tady, ani mezi sociálními sítěmi.
+export const NEOFICIALNI_DOMENY = [
+  "wikipedia.org",
+  "wikidata.org",
+  "wikimedia.org",
+  "fandom.com",
+  "wikia.com",
+  "discogs.com",
+  "musicbrainz.org",
+  "last.fm",
+  "genius.com",
+  "azlyrics.com",
+  "songkick.com",
+  "setlist.fm",
+  "reddit.com",
+  "quora.com",
+  "blogspot.com",
+  "wordpress.com",
+  "medium.com",
+  "tumblr.com",
+  "google.com",
+  "vertexaisearch.cloud.google.com",
+  "bing.com",
+  "amazon.com",
+  "spotify.com",
+  "apple.com",
+  "deezer.com",
+];
+
+function hostZUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    return u.hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
   }
+}
+
+function hostPatri(host: string, domeny: string[]): boolean {
+  return domeny.some((d) => host === d || host.endsWith(`.${d}`));
+}
+
+// Odvodí úroveň důvěry zdroje z jeho kategorie a URL. Řídí se WHITELISTEM
+// (RENOMOVANE_ZDROJE_DOMENY) a doménovými pravidly, ne tím, jakou kategorii
+// zdroji přiřadil AI agent:
+// - URL na doméně z whitelistu = vysoká, v jakékoliv kategorii.
+// - "socialni_site" = vysoká jen na skutečné doméně sociální sítě.
+// - "oficialni_web" = vysoká, pokud doména není Wikipedie, databáze,
+//   blogovací platforma apod. (NEOFICIALNI_DOMENY); oficiální web
+//   na sociální síti se hodnotí jako sociální síť.
+// - Google grounding redirect (nerozbalený) nikdy vysokou důvěru nedostane.
+// - Zdroj bez URL (booklet, tiskovina) se hodnotí jen podle kategorie jako
+//   dřív – týká se hlavně ručně importovaných Referenčních karet.
+// Zbytek beze změny: obecná databáze mimo whitelist střední, rozhovory/knihy
+// nízká, orientační zdroje neověřené.
+export function urovenDuveryZeZdroje(kategorie: string, url: string | null): string {
+  const host = hostZUrl(url);
+
+  if (url && !host) return "neoverene";
+  if (host && hostPatri(host, ["vertexaisearch.cloud.google.com"])) return "neoverene";
+  if (host && jeRenomovanyZdroj(url)) return "vysoka";
+
+  if (kategorie === "socialni_site") {
+    if (!host) return "vysoka";
+    return hostPatri(host, SOCIALNI_SITE_DOMENY) ? "vysoka" : "nizka";
+  }
+  if (kategorie === "oficialni_web") {
+    if (!host) return "vysoka";
+    if (hostPatri(host, SOCIALNI_SITE_DOMENY)) return "vysoka";
+    return hostPatri(host, NEOFICIALNI_DOMENY) ? "neoverene" : "vysoka";
+  }
+  if (kategorie === "media") return "neoverene";
+  if (kategorie === "databaze") return "stredni";
   const priorita = KATEGORIE_ZDROJE_PRIORITA[kategorie] ?? 8;
   if (priorita <= 4) return "stredni";
   if (priorita <= 7) return "nizka";

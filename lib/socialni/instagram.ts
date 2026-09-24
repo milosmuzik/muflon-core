@@ -1,4 +1,4 @@
-import type { VysledekPublikace } from "./facebook";
+import { SOCIALNI_TIMEOUT_MS, type VysledekPublikace } from "./facebook";
 
 export async function publikujNaInstagram(obrazekUrl: string, caption: string): Promise<VysledekPublikace> {
   const igId = process.env.INSTAGRAM_ACCOUNT_ID;
@@ -12,6 +12,7 @@ export async function publikujNaInstagram(obrazekUrl: string, caption: string): 
     const vytvorOdpoved = await fetch(`https://graph.facebook.com/v21.0/${igId}/media`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(SOCIALNI_TIMEOUT_MS),
       body: JSON.stringify({ image_url: obrazekUrl, caption, access_token: token }),
     });
     const vytvorData = await vytvorOdpoved.json();
@@ -22,6 +23,7 @@ export async function publikujNaInstagram(obrazekUrl: string, caption: string): 
     const publikujOdpoved = await fetch(`https://graph.facebook.com/v21.0/${igId}/media_publish`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(SOCIALNI_TIMEOUT_MS),
       body: JSON.stringify({ creation_id: vytvorData.id, access_token: token }),
     });
     const publikujData = await publikujOdpoved.json();

@@ -1,4 +1,4 @@
-import { pripravSeNaGrounded, zaznamenejGrounded, zavriJistic } from "@/lib/agent/rozpocet";
+import { pripravSeNaGrounded, zavriJistic } from "@/lib/agent/rozpocet";
 import { GEMINI_TIMEOUT_MS } from "@/lib/constants";
 import { type RozpocetCasu, chybaVyprseni, jeChybaVyprseni, signalNaVolani } from "@/lib/agent/rozpocet-casu";
 
@@ -9,8 +9,20 @@ export class GeminiQuotaError extends Error {
   }
 }
 
-const GEMINI_MODEL = "gemini-flash-lite-latest";
+/**
+ * Model lze přepnout proměnnou prostředí GEMINI_MODEL (např. na konkrétní
+ * verzi místo aliasu), bez zásahu do kódu. Výchozí hodnota je zatím alias
+ * "-latest", který Google může bez upozornění přesměrovat na novější model
+ * s jiným ceníkem groundingu – proto je dobré v AI Studiu ověřit, kam
+ * alias právě míří, a model pak zafixovat přes GEMINI_MODEL.
+ */
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+/** Webový zdroj, který Google skutečně použil při groundingu (ne text, který model napsal). */
+export type GroundingZdroj = { uri: string; title: string };
+
+export type GeminiOdpoved = { text: string; zdroje: GroundingZdroj[] };
 
 /**
  * Rychlý, synchronní předběžný test (jen "je nastavený API klíč?"). NENÍ
@@ -46,6 +58,19 @@ export async function zavolejGemini(
   volba: boolean | GeminiVolani = false,
   rozpocet?: RozpocetCasu
 ): Promise<string> {
+  return (await zavolejGeminiSeZdroji(prompt, volba, rozpocet)).text;
+}
+
+/**
+ * Stejné jako zavolejGemini, ale vrátí i seznam zdrojů z groundingMetadata –
+ * tedy stránek, které Google Search opravdu našel. Slouží k odhalení URL,
+ * které si model v JSON odpovědi vymyslel (viz navrhy-kalendar.ts).
+ */
+export async function zavolejGeminiSeZdroji(
+  prompt: string,
+  volba: boolean | GeminiVolani = false,
+  rozpocet?: RozpocetCasu
+): Promise<GeminiOdpoved> {
   const apiKlic = process.env.GEMINI_API_KEY;
   if (!apiKlic) throw new GeminiQuotaError("Chybí GEMINI_API_KEY.");
   if (rozpocet?.vyprsel()) throw chybaVyprseni("Časový rozpočet vyčerpán, Gemini se nevolá.");
@@ -98,17 +123,32 @@ export async function zavolejGemini(
     throw new Error(`Gemini API ${odpoved.status}: ${text.slice(0, 300)}`);
   }
 
-  if (sHledanim) await zaznamenejGrounded();
+  // Groundované volání už je započítané předem (atomická rezervace v pripravSeNaGrounded).
 
   const data = await odpoved.json();
-  const casti = data?.candidates?.[0]?.content?.parts ?? [];
+  const kandidat = data?.candidates?.[0];
+  const casti = kandidat?.content?.parts ?? [];
   const text = casti.map((c: { text?: string }) => c.text ?? "").join("\n").trim();
+  const zdroje = vytahniGroundingZdroje(kandidat);
   if (!text) {
-    const duvod = data?.candidates?.[0]?.finishReason ?? data?.promptFeedback?.blockReason ?? "";
-    if (/SAFETY|BLOCK/i.test(String(duvod))) return "";
+    const duvod = kandidat?.finishReason ?? data?.promptFeedback?.blockReason ?? "";
+    if (/SAFETY|BLOCK/i.test(String(duvod))) return { text: "", zdroje };
     throw new Error("Gemini vrátila prázdnou odpověď.");
   }
-  return text;
+  return { text, zdroje };
+}
+
+export function vytahniGroundingZdroje(kandidat: unknown): GroundingZdroj[] {
+  const chunks = (kandidat as { groundingMetadata?: { groundingChunks?: unknown[] } })?.groundingMetadata?.groundingChunks;
+  if (!Array.isArray(chunks)) return [];
+  const vysledek: GroundingZdroj[] = [];
+  for (const c of chunks) {
+    const web = (c as { web?: { uri?: unknown; title?: unknown } })?.web;
+    if (web && typeof web.uri === "string") {
+      vysledek.push({ uri: web.uri, title: typeof web.title === "string" ? web.title : "" });
+    }
+  }
+  return vysledek;
 }
 
 export function vytahniJson(text: string): unknown | null {

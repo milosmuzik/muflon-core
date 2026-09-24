@@ -17,40 +17,42 @@ function verejnaUrlObrazku(id: string): string {
   return `${zaklad}/api/socialni/obrazek/${id}`;
 }
 
-export async function publikovatNaFacebook(udalostId: string) {
-  const udalost = await prisma.udalost.findUnique({ where: { id: udalostId } });
-  if (!udalost) return;
+type Platforma = "facebook" | "instagram";
 
-  const vysledek = await publikujNaFacebook(sestavText(udalost), verejnaUrlObrazku(udalost.id));
+/**
+ * Publikuje událost na jednu platformu, zapíše výsledek do Publikace a
+ * historie a VRÁTÍ, jestli se to povedlo – cron podle toho pozná, že má
+ * zkusit dalšího kandidáta, místo aby neúspěch vykázal jako úspěch.
+ */
+export async function publikovatUdalost(udalostId: string, platforma: Platforma): Promise<boolean> {
+  const udalost = await prisma.udalost.findUnique({ where: { id: udalostId } });
+  if (!udalost) return false;
+
+  const vysledek =
+    platforma === "facebook"
+      ? await publikujNaFacebook(sestavText(udalost), verejnaUrlObrazku(udalost.id))
+      : await publikujNaInstagram(verejnaUrlObrazku(udalost.id), sestavText(udalost));
+  const nazevPlatformy = platforma === "facebook" ? "Facebook" : "Instagram";
 
   await prisma.publikace.create({
     data: {
-      udalostId, platforma: "facebook",
+      udalostId, platforma,
       stav: vysledek.uspech ? "publikovano" : "chyba",
       externiId: vysledek.externiId, chybaText: vysledek.chyba,
       publikovanoV: vysledek.uspech ? new Date() : null,
     },
   });
-  await zapisHistorii("Udalost", udalostId, "upraveno", vysledek.uspech ? "Publikováno na Facebook" : `Chyba publikace na Facebook: ${vysledek.chyba}`);
+  await zapisHistorii("Udalost", udalostId, "upraveno", vysledek.uspech ? `Publikováno na ${nazevPlatformy}` : `Chyba publikace na ${nazevPlatformy}: ${vysledek.chyba}`);
   revalidatePath(`/udalosti/${udalostId}`);
+  return vysledek.uspech;
+}
+
+export async function publikovatNaFacebook(udalostId: string) {
+  await publikovatUdalost(udalostId, "facebook");
 }
 
 export async function publikovatNaInstagram(udalostId: string) {
-  const udalost = await prisma.udalost.findUnique({ where: { id: udalostId } });
-  if (!udalost) return;
-
-  const vysledek = await publikujNaInstagram(verejnaUrlObrazku(udalost.id), sestavText(udalost));
-
-  await prisma.publikace.create({
-    data: {
-      udalostId, platforma: "instagram",
-      stav: vysledek.uspech ? "publikovano" : "chyba",
-      externiId: vysledek.externiId, chybaText: vysledek.chyba,
-      publikovanoV: vysledek.uspech ? new Date() : null,
-    },
-  });
-  await zapisHistorii("Udalost", udalostId, "upraveno", vysledek.uspech ? "Publikováno na Instagram" : `Chyba publikace na Instagram: ${vysledek.chyba}`);
-  revalidatePath(`/udalosti/${udalostId}`);
+  await publikovatUdalost(udalostId, "instagram");
 }
 
 export async function publikovatNaX(udalostId: string) {

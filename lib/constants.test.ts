@@ -36,6 +36,49 @@ describe("urovenDuveryZeZdroje", () => {
   });
 });
 
+describe("urovenDuveryZeZdroje – whitelist místo tvrzení AI", () => {
+  it("oficiální web na Wikipedii nebo databázi nedostane vysokou důvěru", () => {
+    expect(urovenDuveryZeZdroje("oficialni_web", "https://en.wikipedia.org/wiki/Alter_Bridge")).toBe("neoverene");
+    expect(urovenDuveryZeZdroje("oficialni_web", "https://www.discogs.com/artist/1")).toBe("neoverene");
+    expect(urovenDuveryZeZdroje("oficialni_web", "https://kapela.fandom.com/wiki/x")).toBe("neoverene");
+  });
+
+  it("oficiální web na vlastní doméně kapely vysokou důvěru dostane", () => {
+    expect(urovenDuveryZeZdroje("oficialni_web", "https://www.alterbridge.com/news")).toBe("vysoka");
+  });
+
+  it("sociální síť musí být opravdu na doméně sociální sítě", () => {
+    expect(urovenDuveryZeZdroje("socialni_site", "https://www.facebook.com/alterbridge")).toBe("vysoka");
+    expect(urovenDuveryZeZdroje("socialni_site", "https://m.youtube.com/watch?v=x")).toBe("vysoka");
+    expect(urovenDuveryZeZdroje("socialni_site", "https://nejaky-blog.cz/clanek")).toBe("nizka");
+  });
+
+  it("oficiální web na sociální síti se hodnotí jako sociální síť", () => {
+    expect(urovenDuveryZeZdroje("oficialni_web", "https://instagram.com/kapela")).toBe("vysoka");
+  });
+
+  it("nerozbalený Google redirect nedostane vysokou důvěru v žádné kategorii", () => {
+    const redirect = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc";
+    expect(urovenDuveryZeZdroje("oficialni_web", redirect)).toBe("neoverene");
+    expect(urovenDuveryZeZdroje("socialni_site", redirect)).toBe("neoverene");
+  });
+
+  it("nesmyslná nebo ne-http URL nedostane vysokou důvěru", () => {
+    expect(urovenDuveryZeZdroje("oficialni_web", "neni-to-url")).toBe("neoverene");
+    expect(urovenDuveryZeZdroje("oficialni_web", "ftp://kapela.cz")).toBe("neoverene");
+  });
+
+  it("doména z whitelistu má vysokou důvěru v jakékoliv kategorii", () => {
+    expect(urovenDuveryZeZdroje("rozhovor", "https://loudwire.com/interview")).toBe("vysoka");
+    expect(urovenDuveryZeZdroje("orientacni", "https://www.blabbermouth.net/news/x")).toBe("vysoka");
+  });
+
+  it("zdroj bez URL (booklet, ruční karta) se hodnotí podle kategorie jako dřív", () => {
+    expect(urovenDuveryZeZdroje("oficialni_web", null)).toBe("vysoka");
+    expect(urovenDuveryZeZdroje("archivni", null)).toBe("stredni");
+  });
+});
+
 describe("urovenDuveryPriorita", () => {
   it("řadí úrovně vzestupně podle důvěryhodnosti", () => {
     expect(urovenDuveryPriorita("neoverene")).toBeLessThan(urovenDuveryPriorita("nizka"));

@@ -19,7 +19,10 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-vi.mock("./redirect", () => ({ rozbalRedirect: vi.fn(async (url: string) => url) }));
+vi.mock("./redirect", () => ({
+  rozbalRedirect: vi.fn(async (url: string) => url),
+  jeGoogleRedirect: (url: string) => url.includes("vertexaisearch.cloud.google.com"),
+}));
 vi.mock("./duplicity", () => ({ jsouDuplicitni: () => false }));
 
 const zavolejGeminiMock = vi.fn();
@@ -35,9 +38,13 @@ vi.mock("./gemini", () => ({
   jeKvotaChyba: (e: unknown) => e instanceof GeminiQuotaErrorMock,
   vytahniJson: (text: string) => JSON.parse(text),
   zavolejGemini: (...args: unknown[]) => zavolejGeminiMock(...args),
+  zavolejGeminiSeZdroji: async (...args: unknown[]) => {
+    const vysledek = await zavolejGeminiMock(...args);
+    return typeof vysledek === "string" ? { text: vysledek, zdroje: [] } : vysledek;
+  },
 }));
 
-const { vygenerovatNavrhyKalendare } = await import("./navrhy-kalendar");
+const { vygenerovatNavrhyKalendare, jeZGroundingu } = await import("./navrhy-kalendar");
 
 function falesnyRozpocet(vyprsiPoNKontrolach: number): RozpocetCasu {
   let pocet = 0;
@@ -113,5 +120,63 @@ describe("vygenerovatNavrhyKalendare – zpětná kontrola posledních dní", ()
 
     expect(zavolejGeminiMock).toHaveBeenCalledTimes(2);
     expect(vysledek.chyby.some((c) => c.includes("Časový rozpočet vyčerpán"))).toBe(true);
+  });
+});
+
+describe("jeZGroundingu – ochrana proti vymyšleným URL", () => {
+  const grounding = [
+    { uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AAA", title: "loudwire.com" },
+    { uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/BBB", title: "alterbridge.com" },
+  ];
+
+  it("přijme redirect, který Google opravdu vrátil", () => {
+    expect(jeZGroundingu("https://vertexaisearch.cloud.google.com/grounding-api-redirect/AAA", grounding)).toBe(true);
+  });
+
+  it("odmítne redirect, který v groundingu není", () => {
+    expect(jeZGroundingu("https://vertexaisearch.cloud.google.com/grounding-api-redirect/ZZZ", grounding)).toBe(false);
+  });
+
+  it("přijme přímou URL na doméně, kterou Google našel", () => {
+    expect(jeZGroundingu("https://www.loudwire.com/clanek", grounding)).toBe(true);
+  });
+
+  it("odmítne přímou URL na doméně, kterou Google nenašel", () => {
+    expect(jeZGroundingu("https://blabbermouth.net/news/vymysleno", grounding)).toBe(false);
+  });
+
+  it("bez grounding metadat nepřijme nic", () => {
+    expect(jeZGroundingu("https://www.loudwire.com/clanek", [])).toBe(false);
+  });
+});
+
+describe("vygenerovatNavrhyKalendare – schválení jen se zdrojem z Google Search", () => {
+  const polozka = (url: string, kategorie: string) =>
+    JSON.stringify([{ nazev: "Test výročí", typ: "jina", popis: "p", zdroje: [{ nazev: "x", url, kategorie }] }]);
+
+  it("nezaloží událost, když model uvede vysoce důvěryhodnou URL, kterou Google nenašel", async () => {
+    zavolejGeminiMock.mockResolvedValue({ text: polozka("https://www.loudwire.com/x", "media"), zdroje: [] });
+    const vysledek = await vygenerovatNavrhyKalendare(1, falesnyRozpocet(999));
+    expect(createMock).not.toHaveBeenCalled();
+    expect(vysledek.zamitnutoMimoGrounding).toBeGreaterThan(0);
+  });
+
+  it("založí událost, když zdroj z whitelistu opravdu pochází z Google Search", async () => {
+    zavolejGeminiMock.mockResolvedValue({
+      text: polozka("https://www.loudwire.com/x", "media"),
+      zdroje: [{ uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/A", title: "loudwire.com" }],
+    });
+    const vysledek = await vygenerovatNavrhyKalendare(1, falesnyRozpocet(999));
+    expect(vysledek.navrzeno).toBeGreaterThan(0);
+  });
+
+  it("nezaloží událost se „oficiálním webem“ na Wikipedii", async () => {
+    zavolejGeminiMock.mockResolvedValue({
+      text: polozka("https://en.wikipedia.org/wiki/X", "oficialni_web"),
+      zdroje: [{ uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/A", title: "en.wikipedia.org" }],
+    });
+    const vysledek = await vygenerovatNavrhyKalendare(1, falesnyRozpocet(999));
+    expect(createMock).not.toHaveBeenCalled();
+    expect(vysledek.bezDostatecnehoZdroje).toBeGreaterThan(0);
   });
 });

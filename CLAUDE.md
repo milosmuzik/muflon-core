@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Co appka dělá
 
-Znalostní systém pro redakční práci Rádia Muflon — postaveno podle „Muflon Core Bible". Pokrývá Etapu 1 (interpreti, hudebníci, alba, skladby, vazby, zdroje), Etapu 2 (příběhy, události, historie změn, propojení) a základ Etapy 3 (redakční workflow) a Etapy 4 (Muflonní kalendář). Etapa 5 (AI asistent) zatím není součástí.
+Znalostní systém pro redakční práci Rádia Muflon — postaveno podle „Muflon Core Bible". Pokrývá Etapu 1 (interpreti, hudebníci, alba, skladby, vazby, zdroje), Etapu 2 (příběhy, události, historie změn, propojení) a základ Etapy 3 (redakční workflow) a Etapy 4 (Muflonní kalendář). AI agenti běží v plně automatickém provozu (viz níž).
 
 **Princip datového modelu:** objekt + vlastnosti + vztahy + zdroje + historie = znalost.
 
@@ -21,9 +21,10 @@ npm run dev                # http://localhost:3000
 npm run build              # produkční build (next build)
 npm run lint                # next lint
 npm run db:studio          # Prisma Studio — vizuální prohlížeč dat
+npm test                   # vitest (testy vedle kódu, *.test.ts)
 ```
 
-Žádný testovací framework/skripty v projektu nejsou. `postinstall` automaticky pouští `prisma generate`.
+`postinstall` automaticky pouští `prisma generate`. Testy, které importují `@/lib/prisma` bez mocku (např. `duplicity.test.ts`), potřebují vygenerovaného Prisma klienta.
 
 Jednorázové/ladicí skripty se spouští přímo přes `tsx`, např. `npx tsx prisma/import-batch.ts` nebo `npx tsx pridat-skladby.ts` — `prisma/` obsahuje historii jednorázových importních/opravných skriptů (import konkrétních interpretů, slučování duplicit, diagnostiku), které slouží jako reference, ne jako opakovaně spouštěný kód.
 
@@ -51,18 +52,39 @@ Při přidávání nové entity, která má mít zdroje/vazby/historii, ji stač
 
 `lib/actions/slouceni.ts` řeší merge dvou záznamů stejného typu (typicky Interpret): doplní chybějící pole z mazaného záznamu do ponechaného (`SLUCITELNA_POLE`), přepojí všechny join tabulky a polymorfní odkazy (Zdroj, Vazba, HistorieZmeny) na `ponechatId`, teprve pak smaže duplicitu — vše v jedné `prisma.$transaction`.
 
+### Redakční provoz bez člověka – vše řídí whitelist
+
+Appka běží plně automaticky: nikdo nic ručně neschvaluje. O tom, co se schválí, co se smaže a co se zveřejní na sítích, rozhoduje **jen** `urovenDuveryZeZdroje()` v `lib/constants.ts`:
+- URL na doméně z `RENOMOVANE_ZDROJE_DOMENY` (whitelist) = vysoká důvěra v jakékoliv kategorii.
+- `socialni_site` = vysoká jen na doméně z `SOCIALNI_SITE_DOMENY`.
+- `oficialni_web` = vysoká, pokud doména není v `NEOFICIALNI_DOMENY` (Wikipedie, databáze, blogy…).
+- Nerozbalený Google grounding redirect nikdy vysokou důvěru nedostane.
+- Vysoká důvěra (`AUTOSCHVALENI_OD_UROVNE`) = automatické schválení; `automaticka-revize.ts` naopak AI záznamy bez vysoké důvěry maže.
+
+Kategorii, kterou zdroji přiřadí AI, nikdy nevěř bez kontroly domény. Změna whitelistu nebo těchto pravidel je redakční rozhodnutí se zpětným dopadem (revize přepočítává i existující záznamy) – drž ji v testech (`lib/constants.test.ts`).
+
+Kalendářní agent navíc přijímá jen zdroje, které Google Search při groundingu opravdu vrátil (`jeZGroundingu()` v `navrhy-kalendar.ts`, metadata z `zavolejGeminiSeZdroji()`), a publikační cron před zveřejněním whitelist ověří znovu.
+
 ### AI integrace (Gemini)
 
-Tři nezávislé agentní funkce, všechny volají Gemini REST API přímo (`fetch`, model `gemini-flash-lite-latest`), bez SDK:
+Všechna volání jdou přes `lib/agent/gemini.ts` (`zavolejGemini` / `zavolejGeminiSeZdroji`) – Gemini REST API přímo přes `fetch`, bez SDK. Model určuje proměnná `GEMINI_MODEL` (výchozí alias `gemini-flash-lite-latest`). Groundovaná volání (web search) hlídá `lib/agent/rozpocet.ts`: denní strop v DB, atomická rezervace **před** voláním, pacing 1,5 s a jistič po 429/503. Dávkové operace mají sdílený časový rozpočet (`lib/agent/rozpocet-casu.ts`), aby se vešly do 60 s limitu Vercel Hobby.
+
+Hlavní agentní moduly v `lib/agent/` (výběr):
 - **`lib/agent/import-karty.ts`** — extrahuje strukturovaná data z neformátovaného textu „referenční karty" do JSON (interpret + členové + alba + události + příběhy + zdroje). Vstupní bod je chráněný endpoint `app/api/admin/import-karty/route.ts` (auth přes `X-Import-Key` header proti `IMPORT_API_KEY`), který volá MCP server (`import_muflon_karty`) — **nikdy ho nedávej veřejně bez klíče**.
 - **`lib/agent/navrhy-kalendar.ts`** — denně (cron) generuje návrhy kalendářních událostí přes Gemini s `google_search` tool, s vynucenou hierarchií důvěryhodnosti zdrojů (stejná jako `KATEGORIE_ZDROJE`). Vstupní bod `app/api/cron/navrhy-kalendar/route.ts`, auth přes `Authorization: Bearer $CRON_SECRET`.
 - **`lib/agent/zjisti-vice.ts`** — doplňkové obohacení dat (viz `npm run enrich:hudebnici`).
+- **`doplnit-katalog.ts`, `vyroci-z-katalogu.ts`, `doplnit-pribehy.ts`** — automatické doplňování (cron `auto-doplnovani`).
+- **`automaticka-revize.ts`, `dohledat-zdroj*.ts`, `uklid*.ts`** — revize podle whitelistu, dohledání zdrojů, úklid (cron `sdruzena-kontrola`).
+
+### Crony (`vercel.json`, časy v UTC)
+
+`auto-doplnovani` 04:00, `navrhy-kalendar` 05:00, `sdruzena-kontrola` 06:00, `publikovat-vyroci` 08:00. Všechny ověřuje `lib/over-cron.ts` (`CRON_SECRET`). Některé se volají i externě z cron-job.org. Routy `dohledat-zdroje`, `doplnit-katalog` a `revize` jsou vypnuté (vrací 410).
 
 Všechny tři AI funkce parsují odpověď Gemini jako "vrať POUZE JSON, žádný markdown" a mají fallback na extrakci JSON mezi první `{`/`[` a poslední `}`/`]` pro případ, že model přesto markdown přidá.
 
 ### Sociální sítě
 
-`lib/socialni/facebook.ts` a `lib/socialni/instagram.ts` — publikace na Facebook/Instagram (přes `FACEBOOK_PAGE_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`, `INSTAGRAM_ACCOUNT_ID`), stav se eviduje v modelu **Publikace**. `app/api/socialni/obrazek/[id]/route.tsx` generuje obrázek pro post (Next.js OG image).
+`lib/socialni/facebook.ts` a `lib/socialni/instagram.ts` — publikace na Facebook/Instagram (X je vyřazený z automatiky, `lib/socialni/x.ts` zůstává jen pro ruční tlačítko) (přes `FACEBOOK_PAGE_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`, `INSTAGRAM_ACCOUNT_ID`), stav se eviduje v modelu **Publikace**. `app/api/socialni/obrazek/[id]/route.tsx` generuje obrázek pro post (Next.js OG image).
 
 ## Proměnné prostředí
 
@@ -72,6 +94,9 @@ Všechny tři AI funkce parsují odpověď Gemini jako "vrať POUZE JSON, žádn
 | `GEMINI_API_KEY` | AI import karet, návrhy kalendáře, enrichment |
 | `CRON_SECRET` | autorizace `app/api/cron/*` |
 | `IMPORT_API_KEY` | autorizace `app/api/admin/import-karty` |
+| `GEMINI_MODEL` | model Gemini (výchozí `gemini-flash-lite-latest`) |
+| `GEMINI_DENNI_STROP`, `AUTOMATICKA_REZERVA` | denní strop groundovaných volání a rezerva mimo automatiku |
+| `AUTH_PASSWORD` | heslo redakce; bez něj je UI otevřené všem |
 | `NEXT_PUBLIC_APP_URL` | základ pro absolutní URL (default `https://muflon-core.vercel.app`) |
 | `FACEBOOK_PAGE_ACCESS_TOKEN`, `FACEBOOK_PAGE_ID`, `INSTAGRAM_ACCOUNT_ID` | publikace na sociální sítě |
 

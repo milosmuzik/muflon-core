@@ -2,14 +2,15 @@ import { prisma } from "@/lib/prisma";
 import { zapisHistorii } from "@/lib/history";
 import {
   AUTOSCHVALENI_OD_UROVNE,
+  RENOMOVANE_ZDROJE_DOMENY,
   POZNAMKA_AI_NAVRH_KALENDAR,
   nazevZeZdroje,
   urovenDuveryPriorita,
   urovenDuveryZeZdroje,
 } from "@/lib/constants";
-import { rozbalRedirect } from "./redirect";
+import { jeGoogleRedirect, rozbalRedirect } from "./redirect";
 import { jsouDuplicitni } from "./duplicity";
-import { GeminiQuotaError, geminiJeDostupne, jeKvotaChyba, vytahniJson, zavolejGemini } from "./gemini";
+import { type GroundingZdroj, GeminiQuotaError, geminiJeDostupne, jeKvotaChyba, vytahniJson, zavolejGeminiSeZdroji } from "./gemini";
 import { type RozpocetCasu, VYCHOZI_ROZPOCET_MS, vytvorRozpocet } from "@/lib/agent/rozpocet-casu";
 
 const NAZVY_MESICU_2P = [
@@ -37,7 +38,7 @@ function sestavPrompt(den: number, mesic: number): string {
   const datumText = `${den}. ${NAZVY_MESICU_2P[mesic - 1]}`;
   return `Jsi redakční asistent hudební databáze Rádio Muflon (zaměření: rock a metal). Najdi ověřitelné hudební historické události vázané přesně na kalendářní datum ${datumText} (libovolný rok) – narození nebo úmrtí hudebníků, výročí založení kapel, výročí vydání alb, nebo zajímavosti (např. co se stalo na konkrétním koncertu tento den).
 
-Použij web search a dodržuj tuto hierarchii důvěryhodnosti zdrojů (nejvyšší priorita první): 1) oficiální web interpreta, 2) oficiální sociální sítě, 3) renomované hudební databáze/encyklopedie (Metal Archives/Encyclopaedia Metallum, AllMusic, Rate Your Music, Metal Storm), 4) dlouhodobě zavedená hudební média (Decibel, BraveWords, Kerrang!, Metal Hammer, Rock Hard, Spark Rock Magazine, Rock&Pop, BURRN!, Blabbermouth, Loudwire, Metal Injection, Angry Metal Guy, Revolver), 5) bookletky/tiskoviny/archivy, 6) rozhovory/ověřená videa, 7) knihy/biografie. Wikipedii, fanouškovské weby a obecné databáze mimo výše uvedený seznam (Discogs, MusicBrainz) používej jen jako orientační bod, ne jako hlavní zdroj v odpovědi. Preferuj zdroje z bodů 1–4 – ty jediné stačí samy o sobě k automatickému schválení.
+Použij web search a dodržuj hierarchii důvěryhodnosti zdrojů podle Muflon Core Bible (nejvyšší priorita první): 1) oficiální web interpreta, 2) oficiální sociální sítě interpreta, 3) bookletky, tiskoviny, archivy, 4) hudební databáze (Encyclopaedia Metallum, AllMusic, Rate Your Music, Metal Storm, Discogs, MusicBrainz), 5) hudební média, 6) rozhovory a ověřená videa, 7) knihy a biografie. Wikipedie a fanouškovské weby jsou jen orientační. Položka se přijme jen tehdy, když má aspoň jeden zdroj na oficiálním webu nebo oficiální sociální síti interpreta, nebo na některé z těchto domén: ${RENOMOVANE_ZDROJE_DOMENY.join(", ")}. Uváděj jen URL stránek, které jsi při vyhledávání skutečně našel – nevymýšlej je.
 
 Vrať POUZE JSON pole (žádný text okolo, žádné markdown zpětné uvozovky) s max. 3 nejzajímavějšími a nejjistějšími položkami. Pokud nic ověřitelného nenajdeš, vrať prázdné pole []. Formát každé položky:
 {"nazev": "krátký název (do 60 znaků)", "typ": "vyroci_alba|narozeniny|umrti|jina", "popis": "2-3 věty vlastními slovy, redakčně zpracované, ne opsané", "zdroje": [{"nazev": "název zdroje", "url": "https://...", "kategorie": "jedna z: oficialni_web|socialni_site|archivni|databaze|media|rozhovor|kniha|orientacni"}]}
@@ -55,8 +56,38 @@ export type VysledekAgenta = {
   navrzeno: number;
   preskoceno: number;
   bezDostatecnehoZdroje: number;
+  /** Zdroje, které model uvedl, ale Google Search je při groundingu nenašel (pravděpodobně vymyšlené URL). */
+  zamitnutoMimoGrounding: number;
   chyby: string[];
 };
+
+function normalizujHost(text: string): string | null {
+  const t = text.trim().toLowerCase();
+  if (!t) return null;
+  try {
+    return new URL(t.includes("://") ? t : `https://${t}`).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Pochází URL, kterou model napsal do JSON, opravdu z výsledků Google Search?
+ * Groundovací redirect musí přesně odpovídat některému z groundingChunks;
+ * přímá URL musí ležet na doméně, kterou Google u některého chunku uvádí
+ * v `title` (Google tam dává doménu zdroje). Bez grounding metadat se
+ * nepřijme nic – radši žádná událost než vymyšlená.
+ */
+export function jeZGroundingu(url: string, grounding: GroundingZdroj[]): boolean {
+  if (grounding.length === 0) return false;
+  if (jeGoogleRedirect(url)) return grounding.some((g) => g.uri === url);
+  const host = normalizujHost(url);
+  if (!host) return false;
+  return grounding.some((g) => {
+    const h = normalizujHost(g.title);
+    return Boolean(h) && (host === h || host.endsWith(`.${h}`) || (h as string).endsWith(`.${host}`));
+  });
+}
 
 export async function vygenerovatNavrhyKalendare(
   pocetDniDopredu = 1,
@@ -68,6 +99,7 @@ export async function vygenerovatNavrhyKalendare(
   let navrzeno = 0;
   let preskoceno = 0;
   let bezDostatecnehoZdroje = 0;
+  let zamitnutoMimoGrounding = 0;
   let zpracovanoDni = 0;
   const chyby: string[] = [];
 
@@ -97,8 +129,8 @@ export async function vygenerovatNavrhyKalendare(
         preskoceno += aktivni.length;
         continue;
       }
-      const surovaOdpoved = await zavolejGemini(sestavPrompt(den, mesic), { hledat: true, maxVystup: 700 }, rozpocet);
-      const polozky = vytahniPole(surovaOdpoved);
+      const odpoved = await zavolejGeminiSeZdroji(sestavPrompt(den, mesic), { hledat: true, maxVystup: 700 }, rozpocet);
+      const polozky = vytahniPole(odpoved.text);
       for (const polozka of polozky) {
         if (rozpocet.vyprsel()) {
           chyby.push(`${mmdd}: časový rozpočet vyčerpán uprostřed dne, zbytek položek přeskočen.`);
@@ -116,6 +148,10 @@ export async function vygenerovatNavrhyKalendare(
         for (const zdroj of polozka.zdroje.slice(0, 5)) {
           if (rozpocet.vyprsel()) break;
           if (!zdroj.url) continue;
+          if (!jeZGroundingu(zdroj.url, odpoved.zdroje)) {
+            zamitnutoMimoGrounding++;
+            continue;
+          }
           const skutecnaUrl = await rozbalRedirect(zdroj.url, rozpocet);
           const kategorie = PLATNE_KATEGORIE.has(zdroj.kategorie) ? zdroj.kategorie : "orientacni";
           const uroverDuvery = urovenDuveryZeZdroje(kategorie, skutecnaUrl);
@@ -159,7 +195,7 @@ export async function vygenerovatNavrhyKalendare(
           });
         }
         await zapisHistorii("Udalost", novaUdalost.id, "vytvoreno", "Navrženo AI agentem (web search)");
-        await zapisHistorii("Udalost", novaUdalost.id, "zmena_stavu", "Automaticky schváleno – nejméně jeden zdroj s dostatečnou důvěrou");
+        await zapisHistorii("Udalost", novaUdalost.id, "zmena_stavu", "Automaticky schváleno (whitelist) – nejméně jeden zdroj z Google Search s vysokou důvěrou");
         navrzeno++;
       }
     } catch (e) {
@@ -168,5 +204,5 @@ export async function vygenerovatNavrhyKalendare(
     }
   }
 
-  return { zpracovanoDni, navrzeno, preskoceno, bezDostatecnehoZdroje, chyby };
+  return { zpracovanoDni, navrzeno, preskoceno, bezDostatecnehoZdroje, zamitnutoMimoGrounding, chyby };
 }
