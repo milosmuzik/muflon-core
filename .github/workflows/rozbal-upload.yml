@@ -1,0 +1,41 @@
+name: Rozbal upload.zip
+
+# Nahraj do kořene repa soubor upload.zip (přes "Add file → Upload files").
+# Tahle akce ho rozbalí na správná místa, spustí testy a teprve když projdou,
+# změny commitne a zip smaže. Když testy selžou, nic se nezmění.
+
+on:
+  push:
+    branches: [main]
+    paths: [upload.zip]
+
+permissions:
+  contents: write
+
+jobs:
+  rozbal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rozbalit
+        run: |
+          unzip -o upload.zip -d .
+          git rm -q upload.zip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Testy
+        run: |
+          npm ci
+          npm test
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Rozbaleno z upload.zip"
+          git push
