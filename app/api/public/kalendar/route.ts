@@ -13,8 +13,15 @@ export async function GET() {
   const mmdd = mmddPraha();
   const iso = isoPraha();
 
+  // Katalog ukládá výročí jako MM-DD. AI návrhy kalendáře často jako
+  // YYYY-MM-DD (rok, kdy se to stalo). Interní kalendář bere den z poslední
+  // části, veřejné API dřív chtělo přesnou shodu — 2015-10-04 proto na
+  // radiomuflon.cz neprošlo, i když bylo schválené.
   const udalosti = await prisma.udalost.findMany({
-    where: { datum: { in: [mmdd, iso] }, stav: { in: VEREJNE_STAVY } },
+    where: {
+      stav: { in: VEREJNE_STAVY },
+      OR: [{ datum: mmdd }, { datum: iso }, { datum: { endsWith: `-${mmdd}` } }],
+    },
     orderBy: { createdAt: "asc" },
     select: { nazev: true, typ: true, popis: true },
   });
